@@ -1,0 +1,115 @@
+generator client { provider = "prisma-client-js" }
+datasource db { provider = "postgresql" url = env("DATABASE_URL") }
+
+enum Perfil { TI PROFESSOR ADMINISTRADOR }
+enum UsuarioStatus { ATIVO INATIVO }
+enum DispositivoTipo { TABLET NOTEBOOK CHROMEBOOK }
+enum DispositivoStatus { BOM_ESTADO CONSERVADO EM_MANUTENCAO QUEBRADO }
+enum AgendamentoStatus { PENDENTE APROVADO EM_USO CONCLUIDO CANCELADO }
+enum MovimentacaoStatus { ABERTA AGUARDANDO_DEVOLUCAO AGUARDANDO_ASSINATURAS CONCLUIDA }
+enum NotificacaoStatus { PENDENTE VISUALIZADA CONCLUIDA }
+enum AssinaturaTipo { PROFESSOR TI }
+
+model Usuario {
+ id String @id @default(cuid())
+ nome String
+ email String @unique
+ senhaHash String?
+ cpfHash String? @unique
+ perfil Perfil
+ status UsuarioStatus @default(ATIVO)
+ criadoEm DateTime @default(now())
+ atualizadoEm DateTime @updatedAt
+ agendamentos Agendamento[] @relation("ProfessorAgendamentos")
+ notificacoes Notificacao[]
+ assinaturas Assinatura[]
+ movimentacoesProfessor Movimentacao[] @relation("ProfessorMovimentacoes")
+ movimentacoesTi Movimentacao[] @relation("TiMovimentacoes")
+}
+model Dispositivo {
+ id String @id @default(cuid())
+ codigoQr String @unique
+ numero String @unique
+ tipo DispositivoTipo
+ status DispositivoStatus @default(BOM_ESTADO)
+ observacao String?
+ ativo Boolean @default(true)
+ criadoEm DateTime @default(now())
+ atualizadoEm DateTime @updatedAt
+ itens MovimentacaoItem[]
+}
+model Agendamento {
+ id String @id @default(cuid())
+ professorId String
+ professor Usuario @relation("ProfessorAgendamentos", fields:[professorId], references:[id])
+ dataAula DateTime
+ periodo String
+ turma String
+ tipo DispositivoTipo
+ quantidade Int
+ extras Int @default(0)
+ status AgendamentoStatus @default(PENDENTE)
+ criadoEm DateTime @default(now())
+ atualizadoEm DateTime @updatedAt
+}
+model Movimentacao {
+ id String @id @default(cuid())
+ professorId String
+ professor Usuario @relation("ProfessorMovimentacoes", fields:[professorId], references:[id])
+ tiId String
+ ti Usuario @relation("TiMovimentacoes", fields:[tiId], references:[id])
+ turma String
+ saidaEm DateTime @default(now())
+ retornoEm DateTime?
+ relatoProfessor String?
+ status MovimentacaoStatus @default(ABERTA)
+ criadoEm DateTime @default(now())
+ atualizadoEm DateTime @updatedAt
+ itens MovimentacaoItem[]
+ assinaturas Assinatura[]
+}
+model MovimentacaoItem {
+ id String @id @default(cuid())
+ movimentacaoId String
+ movimentacao Movimentacao @relation(fields:[movimentacaoId], references:[id], onDelete:Cascade)
+ dispositivoId String
+ dispositivo Dispositivo @relation(fields:[dispositivoId], references:[id])
+ aluno String?
+ statusSaida DispositivoStatus
+ statusRetorno DispositivoStatus?
+ comentarioTi String?
+ @@unique([movimentacaoId, dispositivoId])
+}
+model Notificacao {
+ id String @id @default(cuid())
+ usuarioId String
+ usuario Usuario @relation(fields:[usuarioId], references:[id], onDelete:Cascade)
+ titulo String
+ mensagem String
+ tipo String
+ entidadeId String?
+ rota String?
+ status NotificacaoStatus @default(PENDENTE)
+ criadoEm DateTime @default(now())
+ concluidaEm DateTime?
+}
+model Assinatura {
+ id String @id @default(cuid())
+ movimentacaoId String
+ movimentacao Movimentacao @relation(fields:[movimentacaoId], references:[id], onDelete:Cascade)
+ usuarioId String
+ usuario Usuario @relation(fields:[usuarioId], references:[id])
+ tipo AssinaturaTipo
+ imagemBase64 String
+ assinadaEm DateTime @default(now())
+ @@unique([movimentacaoId,tipo])
+}
+model Auditoria {
+ id String @id @default(cuid())
+ usuarioId String?
+ acao String
+ entidade String
+ entidadeId String?
+ detalhes Json?
+ criadoEm DateTime @default(now())
+}

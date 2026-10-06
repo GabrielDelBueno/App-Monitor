@@ -1,0 +1,14 @@
+services:
+  app:
+    build: .
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      DATABASE_PATH: /app/data/app-monitor.sqlite
+      COOKIE_SECURE: "true"
+    ports:
+      - "127.0.0.1:3333:3333"
+    volumes:
+      - monitor-data:/app/data
+volumes:
+  monitor-data:

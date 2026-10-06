@@ -1,0 +1,29 @@
+{
+  "name": "app-monitor",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=24.0.0"
+  },
+  "scripts": {
+    "start": "node backend/src/server.js",
+    "dev": "node --watch backend/src/server.js",
+    "bootstrap": "node backend/src/bootstrap.js",
+    "test": "node --test tests/*.test.js",
+    "check": "node --check backend/src/server.js && node --check frontend/app.js",
+    "demo": "node backend/src/demo.js",
+    "test:e2e": "playwright test",
+    "format": "prettier --write backend/src frontend tests playwright.config.js package.json compose.yaml"
+  },
+  "dependencies": {
+    "@zxing/browser": "0.1.5",
+    "express": "5.1.0",
+    "qrcode": "1.5.4",
+    "zod": "4.1.12"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.63.0",
+    "prettier": "3.9.9"
+  }
+}
