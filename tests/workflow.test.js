@@ -5,6 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createApp } from "../backend/src/server.js";
 import { createUser, openDatabase } from "../backend/src/database.js";
+import { openPostgres } from "../backend/src/postgres.js";
 import QRCode from "qrcode";
 const dir = mkdtempSync(join(tmpdir(), "app-monitor-test-")),
   dbPath = join(dir, "test.sqlite");
@@ -21,7 +22,8 @@ let server,
   loan,
   devices = [],
   signature;
-const password = "Test-password-123!";
+const password = "Test-password-123!",
+  changedPassword = "Changed-password-123!";
 function client() {
   let cookie = "";
   return async (path, method = "GET", body) => {
@@ -47,9 +49,14 @@ const today = () =>
     day: "2-digit",
   }).format(new Date());
 before(async () => {
-  const instance = createApp({ databasePath: dbPath });
+  const database = process.env.TEST_DATABASE_URL
+    ? await openPostgres(process.env.TEST_DATABASE_URL, {
+        localTest: process.env.TEST_DATABASE_TLS !== "true",
+      })
+    : undefined;
+  const instance = createApp({ database, databasePath: dbPath });
   db = instance.db;
-  createUser(db, {
+  await createUser(db, {
     name: "Admin",
     email: "admin@test.local",
     password,
@@ -66,7 +73,7 @@ before(async () => {
 });
 after(async () => {
   await new Promise((r) => server.close(r));
-  db.close();
+  await db.close();
   rmSync(dir, { recursive: true, force: true });
 });
 test("autenticação, expiração e proteção de origem", async () => {
@@ -116,11 +123,23 @@ test("administra usuários e aplica os perfis", async () => {
     [ti, "ti@test.local"],
     [prof, "prof@test.local"],
     [other, "other@test.local"],
-  ])
+  ]) {
     assert.equal(
       (await c("/api/login", "POST", { email, password })).status,
       200,
     );
+    assert.equal((await c("/api/me")).data.requiresPasswordChange, true);
+    assert.equal((await c("/api/appointments")).status, 403);
+    assert.equal(
+      (
+        await c("/api/password", "POST", {
+          current: password,
+          password: changedPassword,
+        })
+      ).status,
+      200,
+    );
+  }
   assert.equal((await prof("/api/users")).status, 403);
   assert.equal(
     (
@@ -448,12 +467,17 @@ test("notificações, auditoria e dados persistem ao reabrir o banco", async () 
       (a) => a.action === "ASSINAR_RELATORIO",
     ),
   );
-  const reopened = openDatabase(dbPath);
+  const reopened = process.env.TEST_DATABASE_URL
+    ? await openPostgres(process.env.TEST_DATABASE_URL, {
+        localTest: process.env.TEST_DATABASE_TLS !== "true",
+      })
+    : openDatabase(dbPath);
   assert.equal(
-    reopened.prepare("SELECT status FROM loans WHERE id=?").get(loan.id).status,
+    (await reopened.prepare("SELECT status FROM loans WHERE id=?").get(loan.id))
+      .status,
     "CONCLUIDA",
   );
-  reopened.close();
+  await reopened.close();
 });
 test("senha, desativação e logout encerram acesso", async () => {
   assert.equal(
@@ -468,7 +492,7 @@ test("senha, desativação e logout encerram acesso", async () => {
   assert.equal(
     (
       await prof("/api/password", "POST", {
-        current: password,
+        current: changedPassword,
         password: "new-test-password-123",
       })
     ).status,
@@ -477,8 +501,12 @@ test("senha, desativação e logout encerram acesso", async () => {
   assert.equal((await other("/api/logout", "POST")).status, 204);
   assert.equal((await other("/api/me")).status, 401);
   assert.equal(
-    (await other("/api/login", "POST", { email: "other@test.local", password }))
-      .status,
+    (
+      await other("/api/login", "POST", {
+        email: "other@test.local",
+        password: changedPassword,
+      })
+    ).status,
     200,
   );
   assert.equal(

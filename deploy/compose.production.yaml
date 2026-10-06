@@ -1,0 +1,47 @@
+services:
+  app:
+    build:
+      context: ..
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      HOST: 0.0.0.0
+      PORT: 3333
+      DATABASE_PATH: /app/data/app-monitor.sqlite
+      COOKIE_SECURE: "true"
+      TRUST_PROXY: "1"
+      PUBLIC_BASE_URL: https://${APP_DOMAIN:?Defina APP_DOMAIN no arquivo de configuração}
+      GOVBR_ENABLED: ${GOVBR_ENABLED:-false}
+      GOVBR_ENVIRONMENT: ${GOVBR_ENVIRONMENT:-homologacao}
+      GOVBR_CLIENT_ID: ${GOVBR_CLIENT_ID:-}
+    volumes:
+      - monitor-data:/app/data
+      - monitor-backups:/app/backups
+    networks:
+      - app-network
+  https:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    environment:
+      APP_DOMAIN: ${APP_DOMAIN:?Defina APP_DOMAIN no arquivo de configuração}
+      ACME_EMAIL: ${ACME_EMAIL:?Defina ACME_EMAIL para os certificados}
+      NO_PROXY: app,localhost,127.0.0.1
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    networks:
+      - app-network
+    depends_on:
+      app:
+        condition: service_healthy
+volumes:
+  monitor-data:
+  monitor-backups:
+  caddy-data:
+  caddy-config:
+networks:
+  app-network:

@@ -43,6 +43,7 @@ const state = {
   extraLoan: null,
   editAppointment: null,
 };
+let authConfig = { govbr: false };
 let scannerControls = null,
   scannerReader = null,
   generation = 0;
@@ -166,8 +167,9 @@ if (localStorage.getItem("am-theme") === "dark")
 function login() {
   stopScanner();
   closeModal();
+  if (authConfig.needsSetup) return setupPage();
   $("#app").innerHTML =
-    `<div class="login"><div class="login-card"><div class="login-logo">AM</div><h1>APP Monitor</h1><p class="muted">Controle de dispositivos escolares</p><form id="loginForm"><div class="login-actions">${field("E-mail", '<input name="email" type="email" autocomplete="username" required>')}${field("Senha", '<input name="password" type="password" autocomplete="current-password" required>')}<button class="btn primary" type="submit">Entrar</button></div></form><div class="notice">Use a conta cadastrada pelo administrador da escola.</div><p class="muted">A integração GOV.BR ainda não está disponível.</p>${button("Alternar tema", 'id="loginTheme"')}</div></div>`;
+    `<div class="login"><div class="login-card"><div class="login-logo">AM</div><h1>APP Monitor</h1><p class="muted">Controle de dispositivos escolares</p><form id="loginForm"><div class="login-actions">${field("E-mail", '<input name="email" type="email" autocomplete="username" required>')}${field("Senha", '<input name="password" type="password" autocomplete="current-password" required>')}<button class="btn primary" type="submit">Entrar</button></div></form><div class="notice">Use a conta cadastrada pelo administrador da escola.</div>${authConfig.govbr ? `<p><a class="btn primary govbr-login" href="/auth/govbr">Entrar com GOV.BR${authConfig.environment === "homologacao" ? " (homologação)" : ""}</a></p><p class="muted">No primeiro acesso, entre com sua conta da escola e vincule GOV.BR em Conta.</p>` : ""}${button("Alternar tema", 'id="loginTheme"')}</div></div>`;
   $("#loginTheme").onclick = theme;
   $("#loginForm").onsubmit = action(async (e) => {
     const b = e.currentTarget.querySelector("button");
@@ -184,11 +186,50 @@ function login() {
     }
   });
 }
+function setupPage() {
+  $("#app").innerHTML =
+    `<div class="login"><div class="login-card"><div class="login-logo">AM</div><h1>Configurar sua escola</h1><p class="muted">Crie a primeira conta de administrador.</p><form id="setupForm"><div class="login-actions">${field("Código de instalação", '<input name="token" type="password" autocomplete="off" required>')}${field("Seu nome", '<input name="name" maxlength="200" required>')}${field("Seu e-mail", '<input name="email" type="email" autocomplete="username" required>')}${field("Sua senha (mínimo 12 caracteres)", '<input name="password" type="password" minlength="12" maxlength="200" autocomplete="new-password" required>')}<button class="btn primary">Criar administrador</button></div></form><p class="muted">O código privado é definido por quem instalou o app. Ele não é uma senha de professor.</p></div></div>`;
+  $("#setupForm").onsubmit = action(async (e) => {
+    state.user = await api("/setup", {
+      method: "POST",
+      body: formValue(e.currentTarget),
+    });
+    authConfig = await api("/auth/config");
+    await refresh();
+    toast("Administrador criado. Agora você pode cadastrar a equipe.");
+  });
+}
+function passwordChangePage() {
+  $("#app").innerHTML =
+    `<div class="login"><div class="login-card"><div class="login-logo">AM</div><h1>Defina sua senha</h1><p class="muted">Olá, ${h(state.user.name)}. Troque a senha provisória para acessar o sistema.</p><form id="firstPasswordForm"><div class="login-actions">${field("Senha provisória", '<input name="current" type="password" autocomplete="current-password" required>')}${field("Nova senha (mínimo 12 caracteres)", '<input name="password" type="password" minlength="12" maxlength="200" autocomplete="new-password" required>')}${field("Confirme a nova senha", '<input name="confirmation" type="password" minlength="12" maxlength="200" autocomplete="new-password" required>')}<button class="btn primary">Salvar minha senha</button></div></form><button id="leavePassword" class="btn ghost section">Sair</button></div></div>`;
+  $("#firstPasswordForm").onsubmit = action(async (e) => {
+    const body = formValue(e.currentTarget);
+    if (body.password !== body.confirmation)
+      return toast("As senhas não coincidem.");
+    await api("/password", {
+      method: "POST",
+      body: { current: body.current, password: body.password },
+    });
+    await refresh();
+    toast("Sua senha foi definida.");
+  });
+  $("#leavePassword").onclick = action(async () => {
+    await api("/logout", { method: "POST" });
+    state.user = null;
+    login();
+  });
+}
 async function refresh() {
   if (!state.user) return;
   const current = ++generation;
+  const me = await api("/me");
+  if (current !== generation || !state.user) return;
+  state.user = me;
+  if (me.requiresPasswordChange) {
+    render();
+    return;
+  }
   const paths = [
-    "/me",
     "/appointments",
     "/loans",
     "/notifications",
@@ -196,10 +237,10 @@ async function refresh() {
   ];
   const results = await Promise.all(paths.map((p) => api(p)));
   if (current !== generation || !state.user) return;
-  [state.user, state.appointments, state.loans, state.notifications] = results;
+  [state.appointments, state.loans, state.notifications] = results;
   if (staff()) {
-    state.devices = results[4];
-    state.users = results[5];
+    state.devices = results[3];
+    state.users = results[4];
   } else {
     state.devices = [];
     state.users = [];
@@ -207,6 +248,22 @@ async function refresh() {
   if (state.user.blocked && ["schedule", "release"].includes(state.page))
     state.page = "reports";
   render();
+}
+function temporaryPasswordModal(user, password) {
+  modal(
+    `<h3>Acesso de ${h(user.name)}</h3><p>E-mail: <b>${h(user.email)}</b></p>${field("Senha provisória", `<input id="temporaryPassword" value="${h(password)}" readonly autocomplete="off">`)}<p class="muted">Entregue esta senha à pessoa por um canal privado. Ela será obrigada a trocá-la ao entrar. A senha não poderá ser consultada depois.</p><button id="copyTemporaryPassword" class="btn primary">Copiar senha</button>`,
+  );
+  $("#copyTemporaryPassword").onclick = action(async () => {
+    const input = $("#temporaryPassword");
+    if (navigator.clipboard) {
+      await navigator.clipboard.writeText(input.value);
+      toast("Senha copiada.");
+    } else {
+      input.focus();
+      input.select();
+      toast("Use Ctrl+C para copiar a senha selecionada.");
+    }
+  });
 }
 function navItems() {
   return [
@@ -231,6 +288,7 @@ function navItems() {
 }
 function render() {
   if (!state.user) return login();
+  if (state.user.requiresPasswordChange) return passwordChangePage();
   stopScanner();
   closeModal();
   const nav = navItems();
@@ -672,7 +730,7 @@ function users() {
       ["Nome", "E-mail", "Perfil", "Situação", "Ação"],
       state.users.map(
         (u) =>
-          `<tr><td>${h(u.name)}</td><td>${h(u.email)}</td><td>${labels[u.role]}</td><td>${u.active ? "Ativo" : "Inativo"}</td><td>${u.id !== state.user.id ? button(u.active ? "Desativar" : "Reativar", `data-user="${u.id}"`, u.active ? "danger" : "success") : ""}</td></tr>`,
+          `<tr><td>${h(u.name)}</td><td>${h(u.email)}</td><td>${labels[u.role]}</td><td>${u.active ? "Ativo" : "Inativo"}</td><td>${u.id !== state.user.id ? button(u.active ? "Desativar" : "Reativar", `data-user="${u.id}"`, u.active ? "danger" : "success") + " " + button("Redefinir senha", `data-reset-password="${u.id}"`) : ""}</td></tr>`,
       ),
     )}</div>`
   );
@@ -833,6 +891,14 @@ function bind() {
     modal(
       `<h3>Alterar senha</h3><form id="passwordForm">${field("Senha atual", '<input name="current" type="password" autocomplete="current-password" required>')}${field("Nova senha (mínimo 12 caracteres)", '<input name="password" type="password" autocomplete="new-password" minlength="12" maxlength="200" required>')}<button class="btn primary section">Salvar senha</button></form>`,
     );
+    if (authConfig.govbr && state.user.role === "PROFESSOR") {
+      $("#modal .modal").insertAdjacentHTML(
+        "beforeend",
+        state.user.govbrLinked
+          ? '<div class="notice">Sua conta GOV.BR já está vinculada.</div>'
+          : '<div class="notice"><h3>Vincular GOV.BR</h3><p>Confirme sua identidade no GOV.BR para usar esse método de entrada nesta conta da escola.</p><a href="/auth/govbr/link" class="btn primary govbr-login">Vincular minha conta GOV.BR</a></div>',
+      );
+    }
     $("#passwordForm").onsubmit = action(async (e) => {
       await api("/password", {
         method: "POST",
@@ -952,14 +1018,14 @@ function bind() {
   if ($("#newUser"))
     $("#newUser").onclick = () => {
       modal(
-        `<h3>Cadastrar usuário</h3><form id="userForm"><div class="login-actions">${field("Nome", '<input name="name" maxlength="200" required>')}${field("E-mail", '<input name="email" type="email" required>')}${field("Perfil", `<select name="role">${options(["PROFESSOR", "TI", "ADMINISTRADOR"], "PROFESSOR")}</select>`)}${field("Senha inicial (mínimo 12 caracteres)", '<input name="password" type="password" minlength="12" maxlength="200" autocomplete="new-password" required>')}<button class="btn primary">Cadastrar</button></div></form>`,
+        `<h3>Cadastrar usuário</h3><form id="userForm"><div class="login-actions">${field("Nome", '<input name="name" maxlength="200" required>')}${field("E-mail", '<input name="email" type="email" required>')}${field("Perfil", `<select name="role">${options(["PROFESSOR", "TI", "ADMINISTRADOR"], "PROFESSOR")}</select>`)}${field("Senha provisória (opcional, mínimo 12 caracteres)", '<input name="password" type="password" minlength="12" maxlength="200" autocomplete="new-password" placeholder="Deixe vazio para gerar automaticamente">')}<button class="btn primary">Cadastrar</button></div></form>`,
       );
       $("#userForm").onsubmit = action(async (e) => {
-        await api("/users", {
-          method: "POST",
-          body: formValue(e.currentTarget),
-        });
+        const body = formValue(e.currentTarget);
+        if (!body.password) delete body.password;
+        const user = await api("/users", { method: "POST", body });
         await refresh();
+        temporaryPasswordModal(user, user.temporaryPassword);
         toast("Usuário cadastrado.");
       });
     };
@@ -976,6 +1042,24 @@ function bind() {
         await refresh();
       })),
   );
+  $$("[data-reset-password]").forEach(
+    (b) =>
+      (b.onclick = action(async () => {
+        const user = state.users.find((u) => u.id === b.dataset.resetPassword);
+        if (
+          !confirm(
+            `Gerar uma nova senha provisória para ${user.name}? As sessões atuais serão encerradas.`,
+          )
+        )
+          return;
+        const result = await api(`/users/${user.id}/password`, {
+          method: "POST",
+          body: {},
+        });
+        await refresh();
+        temporaryPasswordModal(user, result.temporaryPassword);
+      })),
+  );
   bindTables();
 }
 window.addEventListener("keydown", (e) => {
@@ -984,10 +1068,33 @@ window.addEventListener("keydown", (e) => {
 window.addEventListener("pagehide", stopScanner);
 (async () => {
   try {
+    authConfig = await api("/auth/config");
     state.user = await api("/me");
     await refresh();
   } catch (error) {
     login();
     if (!error.message.includes("Entre na sua conta")) toast(error.message);
   }
+  const params = new URLSearchParams(location.search);
+  const messages = {
+    govbr_unavailable:
+      "GOV.BR indisponível ou configuração ainda não validada.",
+    govbr_invalid_flow:
+      "Esta tentativa expirou ou não pertence a este navegador. Tente novamente.",
+    govbr_cancelled: "Entrada pelo GOV.BR cancelada.",
+    govbr_not_linked:
+      "Entre com a conta da escola e vincule GOV.BR em Conta antes de usar esse login.",
+    govbr_account_disabled:
+      "A conta da escola está inativa ou sua sessão expirou.",
+    govbr_already_linked:
+      "Esta identidade GOV.BR já está vinculada a outra conta, ou a conta já possui outro vínculo.",
+    govbr_invalid_response:
+      "Não foi possível validar a resposta do GOV.BR. Tente novamente.",
+  };
+  if (Object.hasOwn(messages, params.get("auth_error")))
+    toast(messages[params.get("auth_error")]);
+  if (params.get("auth_success") === "govbr_linked")
+    toast("Sua conta GOV.BR foi vinculada.");
+  if (params.has("auth_error") || params.has("auth_success"))
+    window.history.replaceState(null, "", location.pathname);
 })();

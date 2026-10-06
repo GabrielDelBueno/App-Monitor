@@ -745,3 +745,7 @@ textarea:focus-visible {
     margin: 12mm;
   }
 }
+.govbr-login {
+  display: inline-block;
+  text-decoration: none;
+}

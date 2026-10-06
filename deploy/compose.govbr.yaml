@@ -1,0 +1,16 @@
+# Acrescente este arquivo somente depois de receber o credenciamento GOV.BR.
+services:
+  app:
+    environment:
+      GOVBR_ENABLED: "true"
+      GOVBR_CLIENT_ID: ${GOVBR_CLIENT_ID:?Defina o client_id aprovado pelo GOV.BR}
+      GOVBR_CLIENT_SECRET_FILE: /run/secrets/govbr_client_secret
+      GOVBR_SUBJECT_KEY_FILE: /run/secrets/govbr_subject_key
+    secrets:
+      - govbr_client_secret
+      - govbr_subject_key
+secrets:
+  govbr_client_secret:
+    file: ${GOVBR_SECRET_PATH:?Defina o caminho do arquivo com o client_secret}
+  govbr_subject_key:
+    file: ${GOVBR_SUBJECT_KEY_PATH:?Defina o caminho da chave estável de proteção de identidade}

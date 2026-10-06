@@ -1,0 +1,24 @@
+# Free web service; data lives in Neon PostgreSQL, never in Render's temporary disk.
+services:
+  - type: web
+    name: app-monitor
+    runtime: docker
+    plan: free
+    region: oregon
+    branch: app-monitor-funcional
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /health
+    numInstances: 1
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: COOKIE_SECURE
+        value: "true"
+      - key: TRUST_PROXY
+        value: "1"
+      - key: GOVBR_ENABLED
+        value: "false"
+      - key: DATABASE_URL
+        sync: false
+      - key: SETUP_TOKEN
+        generateValue: true

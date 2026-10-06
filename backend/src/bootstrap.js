@@ -1,3 +1,4 @@
+import { openPostgres } from "./postgres.js";
 import { existsSync } from "node:fs";
 import { openDatabase, createUser } from "./database.js";
 if (existsSync(".env")) process.loadEnvFile(".env");
@@ -12,18 +13,18 @@ if (!email || !name || !password || password.length < 12) {
   );
   process.exit(1);
 }
-const db = openDatabase(
-  process.env.DATABASE_PATH || "./data/app-monitor.sqlite",
-);
+const db = process.env.DATABASE_URL
+  ? await openPostgres(process.env.DATABASE_URL)
+  : openDatabase(process.env.DATABASE_PATH || "./data/app-monitor.sqlite");
 try {
-  if (db.prepare("SELECT id FROM users WHERE role='ADMINISTRADOR'").get())
+  if (await db.prepare("SELECT id FROM users WHERE role='ADMINISTRADOR'").get())
     throw Error(
       "Já existe um administrador. Use a tela de usuários; o bootstrap não altera contas existentes.",
     );
-  createUser(db, { name, email, password, role: "ADMINISTRADOR" });
+  await createUser(db, { name, email, password, role: "ADMINISTRADOR" });
   console.log(
     "Administrador criado. Remova ADMIN_PASSWORD da configuração após o cadastro.",
   );
 } finally {
-  db.close();
+  await db.close();
 }

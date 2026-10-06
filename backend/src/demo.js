@@ -3,10 +3,13 @@ import { dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createApp } from "./server.js";
 import { createUser, id } from "./database.js";
+if (process.env.NODE_ENV === "production")
+  throw Error("A demonstração não pode ser iniciada em produção.");
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 const { app, db } = createApp({
   databasePath: resolve(root, "data/demo.sqlite"),
   secure: false,
+  govbr: null,
 });
 if (!db.prepare("SELECT id FROM users LIMIT 1").get()) {
   for (const [name, email, role] of [

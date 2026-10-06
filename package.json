@@ -14,11 +14,17 @@
     "check": "node --check backend/src/server.js && node --check frontend/app.js",
     "demo": "node backend/src/demo.js",
     "test:e2e": "playwright test",
-    "format": "prettier --write backend/src frontend tests playwright.config.js package.json compose.yaml"
+    "format": "prettier --write backend/src scripts frontend tests playwright.config.js package.json compose.yaml",
+    "backup": "node scripts/backup.js",
+    "govbr:key": "node scripts/create-subject-key.js",
+    "test:deployment": "node tests/deployment/https-smoke.js",
+    "test:postgres": "node tests/postgres/run.js"
   },
   "dependencies": {
     "@zxing/browser": "0.1.5",
     "express": "5.1.0",
+    "openid-client": "6.8.8",
+    "pg": "8.23.1",
     "qrcode": "1.5.4",
     "zod": "4.1.12"
   },

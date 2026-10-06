@@ -1,12 +1,12 @@
 # APP Monitor
 
-Aplicação de controle de dispositivos escolares baseada na interface do Protótipo V5 e nos fluxos da Sistema Real Base 1. As telas usam a API real, com persistência em SQLite. Frontend e API são servidos juntos, sem configurar CORS ou um segundo servidor.
+Aplicação de controle de dispositivos escolares baseada na interface do Protótipo V5 e nos fluxos da Sistema Real Base 1. As telas usam a API real, com SQLite na demonstração local e PostgreSQL na hospedagem. Frontend e API são servidos juntos, sem configurar CORS ou um segundo servidor.
 
 ## Requisitos
 
 - Node.js **24 ou superior** (usa `node:sqlite`).
 - npm. Para os testes de navegador, Chromium.
-- Disco persistente para o banco. A aplicação funciona em uma única instância; múltiplas réplicas exigem adaptar a persistência para PostgreSQL.
+- Uma única instância da aplicação. Na hospedagem gratuita, PostgreSQL do Neon; localmente, SQLite em disco persistente.
 
 ## Experimentar com dados fictícios
 
@@ -27,7 +27,15 @@ A demonstração atende na porta 3333, apenas na interface de loopback. Contas e
 
 O banco `data/demo.sqlite` é separado do banco real. Na primeira execução são criadas três contas e 30 tablets, incluindo um em manutenção. Execuções seguintes preservam os dados. **Não publique a demonstração nem use essas contas com dados reais.**
 
-## Instalação com dados reais
+## Publicar gratuitamente
+
+A configuração pronta usa **Render Free + Neon Free**, com endereço HTTPS do Render e banco externo persistente. Siga [o passo a passo de publicação](deploy/README.md). Não precisa comprar domínio nem obter acesso GOV.BR.
+
+[Iniciar configuração no Render](https://render.com/deploy?repo=https://github.com/GabrielDelBueno/App-Monitor/tree/app-monitor-funcional).
+
+A publicação ainda não foi executada: faltam suas contas gratuitas e a configuração privada do Neon no Render. O site pode demorar para abrir após inatividade, conforme os limites dos planos Free.
+
+## Instalação local com dados reais
 
 ```sh
 npm ci
@@ -41,9 +49,9 @@ npm run bootstrap
 npm start
 ```
 
-Depois do bootstrap, remova `ADMIN_PASSWORD` do arquivo/ambiente. O bootstrap cria apenas o primeiro administrador e recusa sobrescrever contas existentes. O administrador cadastra professores e TI na tela **Usuários**. Cada pessoa pode alterar a própria senha em **Conta**.
+Depois do bootstrap, remova `ADMIN_PASSWORD` do arquivo/ambiente. O bootstrap cria apenas o primeiro administrador e recusa sobrescrever contas existentes. O administrador cadastra professores, TI e outros administradores na tela **Usuários**. Deixar a senha em branco gera uma senha provisória, mostrada somente uma vez. Entregue-a por um canal privado. Todos os novos usuários precisam trocá-la no primeiro login. **Redefinir senha** encerra as sessões do usuário e gera outra senha provisória; não há envio automático de e-mail. Cada pessoa pode alterar sua própria senha em **Conta**.
 
-O banco padrão é `data/app-monitor.sqlite`. `DATABASE_PATH` permite indicar outro caminho; use um disco persistente. `PORT` define a porta (padrão 3333). Em produção com HTTPS, defina `COOKIE_SECURE=true`. Não use a porta HTTP diretamente para acesso público.
+O banco padrão é `data/app-monitor.sqlite`. `DATABASE_PATH` permite indicar outro caminho; use um disco persistente. Se `DATABASE_URL` estiver definida, `npm start` e `npm run bootstrap` usam PostgreSQL com TLS verificado. Na hospedagem, `SETUP_TOKEN` permite criar o primeiro administrador pela tela de instalação; remova-o depois. `PORT` define a porta (padrão 3333). Em produção com HTTPS, defina `COOKIE_SECURE=true`. Não use a porta HTTP diretamente para acesso público.
 
 ## Fluxo operacional
 
@@ -64,6 +72,8 @@ Pedidos podem ser editados ou cancelados antes da liberação; editar exige nova
 npm run check
 npm test
 npm run test:e2e
+# Com Docker e OpenSSL, valida PostgreSQL real com TLS em contêiner temporário:
+npm run test:postgres
 ```
 
 Os testes de integração usam bancos temporários e cobrem autenticação, acesso por perfil, QR, inventário, agendamento, liberação atômica, extras, devolução, assinaturas, notificações e persistência. O teste de navegador percorre o fluxo real pelas telas, verifica assinaturas e layout móvel, usando banco em memória.
@@ -88,7 +98,7 @@ docker compose up -d
 
 Antes do bootstrap, defina as três variáveis no seu ambiente de forma segura. Configure um proxy reverso HTTPS no domínio escolhido, encaminhando para a porta 3333 e preservando o cabeçalho `Host`. O compose já define cookies seguros, portanto o login via HTTP direto não é o fluxo de produção. O endpoint `GET /health` verifica acesso ao banco.
 
-Não foi feita publicação em hospedagem durante este desenvolvimento. Domínio, TLS, volume persistente, backups e e-mail de recuperação precisam ser definidos para a implantação da escola.
+Não foi feita publicação em hospedagem durante este desenvolvimento. Na opção gratuita, crie contas no Render e no Neon e siga `deploy/README.md`. Para servidor próprio com Caddy, use `deploy/VPS.md`. Recuperação por e-mail não está implementada; o administrador pode redefinir a senha pela tela.
 
 ### Backup
 
@@ -99,15 +109,21 @@ Pare a instância antes de copiar o banco e os arquivos auxiliares `-wal` / `-sh
 - E-mail e senha; senhas armazenadas com scrypt e salt aleatório. Sessões de 8 horas em cookies HttpOnly/SameSite, sem token em localStorage. Tentativas de login são limitadas por origem de rede, com contador em memória (reinicia com o processo).
 - Cada professor acessa apenas seus agendamentos, movimentações e notificações. TI gerencia equipamentos e empréstimos; apenas o administrador gerencia usuários e consulta auditoria.
 - As assinaturas são manuscritas associadas à conta e ao horário. **Não são certificadas ICP-Brasil.** O servidor valida o formato PNG; não consegue provar que o desenho corresponde à assinatura civil.
-- GOV.BR **não está integrado**: exige credenciamento e configuração oficial. A simulação de entrada foi removida.
+- GOV.BR: o cliente OIDC está implementado e testado com provedor isolado, mas **a homologação oficial e a ativação continuam pendentes**. Exigem credenciamento e credenciais da instituição. Veja `docs/GOVBR.md`.
 - Recuperação de senha por e-mail, importação em lote e integração com sistemas escolares ainda não estão implementadas.
-- PostgreSQL/Prisma não são usados nesta execução. O modelo recebido foi preservado em `docs/modelo-original.prisma` como referência, sem migrações executáveis. SQLite simplifica o primeiro uso; uma implantação com várias instâncias precisará da migração de banco.
+- PostgreSQL é usado quando `DATABASE_URL` está definida, sem Prisma. SQLite continua disponível para execução local. O modelo original foi preservado em `docs/modelo-original.prisma` como referência. Esta implantação usa uma única instância e serializa as operações para proteger as validações do fluxo.
+
+## Publicação com HTTPS e ativação GOV.BR
+
+Consulte [o guia de publicação](deploy/README.md) e [o guia GOV.BR](docs/GOVBR.md). Não publique contas de demonstração. A integração oficial permanece desligada até haver credenciamento e homologação.
 
 ## Estrutura
 
 - `frontend/`: interface responsiva baseada na V5, com estados reais, tema, câmera e impressão.
 - `backend/src/server.js`: API, autenticação, autorização e regras.
-- `backend/src/database.js`: banco, transações e senhas.
+- `backend/src/database.js`: esquema SQLite, transações e senhas.
+- `backend/src/postgres.js`: PostgreSQL, migração inicial e transações.
+- `render.yaml`: publicação gratuita sem disco local.
 - `backend/src/bootstrap.js`: primeiro administrador.
 - `backend/src/demo.js`: demonstração local isolada.
 - `tests/`: testes de integração e navegador.

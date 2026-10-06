@@ -1,10 +1,24 @@
 import { test, expect } from "@playwright/test";
 const password = "Browser-test-123!";
+const changedPasswords = new Map();
 async function login(page, email) {
   await page.goto("/");
   await page.getByLabel("E-mail", { exact: true }).fill(email);
-  await page.getByLabel("Senha", { exact: true }).fill(password);
+  await page
+    .getByLabel("Senha", { exact: true })
+    .fill(changedPasswords.get(email) || password);
   await page.getByRole("button", { name: "Entrar", exact: true }).click();
+  await page.locator("#leavePassword, #logout").waitFor();
+  if (await page.locator("#firstPasswordForm").count()) {
+    const next = "Changed-browser-password-123!";
+    await page.getByLabel("Senha provisória", { exact: true }).fill(password);
+    await page
+      .getByLabel("Nova senha (mínimo 12 caracteres)", { exact: true })
+      .fill(next);
+    await page.getByLabel("Confirme a nova senha", { exact: true }).fill(next);
+    await page.getByRole("button", { name: "Salvar minha senha" }).click();
+    changedPasswords.set(email, next);
+  }
   await expect(
     page.getByRole("button", { name: "Sair", exact: true }),
   ).toBeVisible();
@@ -42,10 +56,11 @@ test("ciclo escolar completo pelas telas e layout móvel", async ({ page }) => {
     await page.getByLabel("E-mail", { exact: true }).fill(email);
     await page.getByLabel("Perfil", { exact: true }).selectOption(role);
     await page
-      .getByLabel("Senha inicial (mínimo 12 caracteres)")
+      .getByLabel("Senha provisória (opcional, mínimo 12 caracteres)")
       .fill(password);
     await page.getByRole("button", { name: "Cadastrar", exact: true }).click();
-    await expect(page.locator("#modal")).toHaveCount(0);
+    await expect(page.locator("#temporaryPassword")).toBeVisible();
+    await page.getByRole("button", { name: "Fechar", exact: true }).click();
   }
   await page.getByRole("button", { name: "Inventário", exact: true }).click();
   for (let n = 1; n <= 2; n++) {

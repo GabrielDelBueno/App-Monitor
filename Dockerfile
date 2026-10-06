@@ -7,7 +7,8 @@ RUN --mount=type=secret,id=npm_ca,target=/tmp/npm-ca.pem \
     npm ci --omit=dev --no-audit --no-fund --fetch-retries=0 --fetch-timeout=30000
 COPY --chown=node:node backend ./backend
 COPY --chown=node:node frontend ./frontend
-RUN mkdir -p /app/data && chown -R node:node /app/data
+COPY --chown=node:node scripts ./scripts
+RUN mkdir -p /app/data /app/backups && chown -R node:node /app/data /app/backups
 USER node
 ENV NODE_ENV=production HOST=0.0.0.0 PORT=3333 DATABASE_PATH=/app/data/app-monitor.sqlite COOKIE_SECURE=true
 EXPOSE 3333

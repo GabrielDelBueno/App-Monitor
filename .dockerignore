@@ -7,3 +7,9 @@ tests
 test-results
 playwright-report
 attachments
+
+**/.env
+**/.env.*
+**/secrets
+
+backups

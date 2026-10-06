@@ -17,14 +17,7 @@ export function verifyPassword(password, hash) {
   const actual = scryptSync(password, salt, 64);
   return timingSafeEqual(actual, Buffer.from(key, "hex"));
 }
-export function openDatabase(path) {
-  if (path !== ":memory:")
-    mkdirSync(dirname(resolve(path)), { recursive: true });
-  const db = new DatabaseSync(path);
-  db.exec(
-    "PRAGMA foreign_keys=ON; PRAGMA journal_mode=WAL; PRAGMA busy_timeout=5000;",
-  );
-  db.exec(`
+export const schema = `
  CREATE TABLE IF NOT EXISTS users(id TEXT PRIMARY KEY,name TEXT NOT NULL,email TEXT NOT NULL UNIQUE,password TEXT NOT NULL,role TEXT NOT NULL CHECK(role IN ('TI','PROFESSOR','ADMINISTRADOR')),active INTEGER NOT NULL DEFAULT 1,created_at TEXT NOT NULL);
  CREATE TABLE IF NOT EXISTS sessions(token TEXT PRIMARY KEY,user_id TEXT NOT NULL REFERENCES users(id),expires_at INTEGER NOT NULL);
  CREATE TABLE IF NOT EXISTS devices(id TEXT PRIMARY KEY,number TEXT NOT NULL UNIQUE,qr TEXT NOT NULL UNIQUE,type TEXT NOT NULL CHECK(type IN ('TABLET','NOTEBOOK','CHROMEBOOK')),status TEXT NOT NULL CHECK(status IN ('BOM_ESTADO','CONSERVADO','EM_MANUTENCAO','QUEBRADO')),notes TEXT NOT NULL DEFAULT '',active INTEGER NOT NULL DEFAULT 1);
@@ -34,16 +27,37 @@ export function openDatabase(path) {
  CREATE TABLE IF NOT EXISTS signatures(id TEXT PRIMARY KEY,loan_id TEXT NOT NULL REFERENCES loans(id),user_id TEXT NOT NULL REFERENCES users(id),type TEXT NOT NULL,image TEXT NOT NULL,signed_at TEXT NOT NULL,UNIQUE(loan_id,type));
  CREATE TABLE IF NOT EXISTS notifications(id TEXT PRIMARY KEY,user_id TEXT NOT NULL REFERENCES users(id),title TEXT NOT NULL,message TEXT NOT NULL,page TEXT NOT NULL,entity_id TEXT,status TEXT NOT NULL DEFAULT 'PENDENTE',created_at TEXT NOT NULL);
  CREATE TABLE IF NOT EXISTS audit(id TEXT PRIMARY KEY,user_id TEXT REFERENCES users(id),action TEXT NOT NULL,entity_id TEXT,details TEXT NOT NULL,created_at TEXT NOT NULL);
+ CREATE TABLE IF NOT EXISTS oauth_flows(state_hash TEXT PRIMARY KEY,browser_hash TEXT NOT NULL,code_verifier TEXT NOT NULL,nonce TEXT NOT NULL,redirect_uri TEXT NOT NULL,mode TEXT NOT NULL,user_id TEXT REFERENCES users(id),session_hash TEXT,expires_at INTEGER NOT NULL);
+ CREATE TABLE IF NOT EXISTS external_identities(id TEXT PRIMARY KEY,user_id TEXT NOT NULL REFERENCES users(id),issuer TEXT NOT NULL,subject_hash TEXT NOT NULL,created_at TEXT NOT NULL,UNIQUE(issuer,subject_hash),UNIQUE(issuer,user_id));
  CREATE INDEX IF NOT EXISTS loan_items_device ON loan_items(device_id);
  CREATE INDEX IF NOT EXISTS loans_teacher ON loans(teacher_id,status);
  CREATE INDEX IF NOT EXISTS notifications_user ON notifications(user_id,status);
- `);
+ `;
+export function openDatabase(path) {
+  if (path !== ":memory:")
+    mkdirSync(dirname(resolve(path)), { recursive: true });
+  const db = new DatabaseSync(path);
+  db.exec(
+    "PRAGMA foreign_keys=ON; PRAGMA journal_mode=WAL; PRAGMA busy_timeout=5000;",
+  );
+  db.exec(schema);
+  if (
+    !db
+      .prepare("PRAGMA table_info(users)")
+      .all()
+      .some((column) => column.name === "must_change_password")
+  ) {
+    db.exec(
+      "ALTER TABLE users ADD COLUMN must_change_password INTEGER NOT NULL DEFAULT 0",
+    );
+  }
   return db;
 }
-export function transaction(db, fn) {
+export async function transaction(db, fn) {
+  if (db.transaction) return db.transaction(fn);
   db.exec("BEGIN IMMEDIATE");
   try {
-    const result = fn();
+    const result = await fn();
     db.exec("COMMIT");
     return result;
   } catch (error) {
@@ -51,17 +65,23 @@ export function transaction(db, fn) {
     throw error;
   }
 }
-export function createUser(db, { name, email, password, role }) {
+export function createUser(
+  db,
+  { name, email, password, role, mustChangePassword = false },
+) {
   const user = { id: id(), name, email: email.toLowerCase(), role, active: 1 };
-  db.prepare(
-    "INSERT INTO users(id,name,email,password,role,created_at) VALUES(?,?,?,?,?,?)",
-  ).run(
-    user.id,
-    name,
-    user.email,
-    passwordHash(password),
-    role,
-    new Date().toISOString(),
-  );
-  return user;
+  const result = db
+    .prepare(
+      "INSERT INTO users(id,name,email,password,role,created_at,must_change_password) VALUES(?,?,?,?,?,?,?)",
+    )
+    .run(
+      user.id,
+      name,
+      user.email,
+      passwordHash(password),
+      role,
+      new Date().toISOString(),
+      +mustChangePassword,
+    );
+  return result?.then ? result.then(() => user) : user;
 }
