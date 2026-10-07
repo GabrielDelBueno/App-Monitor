@@ -15,3 +15,7 @@ A aplicação fica em uma única instância. PostgreSQL é selecionado por `DATA
 **Ainda não executados:** publicação em contas reais Render/Neon, conexão ao banco real da escola, acesso público/HTTPS do endereço fornecido pelo Render, backup/restauração desse banco real, câmera física e homologação GOV.BR. GOV.BR permanece desligado por padrão; o usuário escolheu o acesso administrado por e-mail e senha. Não há alegação de assinatura certificada.
 
 As instruções de instalação e inicialização do ambiente Codex foram salvas em rascunho. Salvar esse rascunho não publica o site, e a restauração em uma nova tarefa da plataforma não foi validada.
+
+## Atualização: instalação pelo navegador
+
+`npm run check` e os 21 testes de integração passaram. Os 3 testes Chromium passaram, incluindo o novo teste de manifesto/ícones, instruções de instalação, service worker, aviso offline, retorno à conexão e comprovação de que apenas `/offline.html` fica no cache. Nenhum banco ou cadastro foi alterado para essa atualização. A instalação física em Android/iPhone e a atualização do serviço público no Render ainda precisam ser conferidas nos aparelhos e no painel do provedor.

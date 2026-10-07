@@ -35,6 +35,18 @@ A configuração pronta usa **Render Free + Neon Free**, com endereço HTTPS do 
 
 A publicação ainda não foi executada: faltam suas contas gratuitas e a configuração privada do Neon no Render. O site pode demorar para abrir após inatividade, conforme os limites dos planos Free.
 
+## Instalar no celular pelo navegador
+
+Abra o endereço HTTPS do seu App Monitor. O botão **Instalar App Monitor** mostra as instruções e, quando disponível, abre a instalação do navegador.
+
+- **Android:** no Chrome, abra o menu ⋮ e escolha **Instalar aplicativo** ou **Adicionar à tela inicial**.
+- **iPhone/iPad:** no Safari, toque em **Compartilhar → Adicionar à Tela de Início → Adicionar**. Se aparecer **Abrir como App**, mantenha ativado.
+- **Computador:** use a opção de instalação do Chrome ou Edge na barra de endereço ou no menu.
+
+Abra pelo ícone e use seu e-mail e senha da escola. A instalação não cria outro banco nem altera os cadastros. O app precisa de internet para consultar e registrar dados; sem conexão, apresenta uma tela de aviso. O service worker guarda somente esse aviso público e nunca armazena respostas da API, relatórios ou dados de usuários no cache offline. As páginas online são buscadas na rede para receber atualizações.
+
+A publicação de atualizações continua pelo Render. Aguarde a nova versão ficar **Live** e reabra o app. Os testes de navegador cobrem manifesto, ícones, registro do service worker, aviso offline, retorno à conexão e ausência de dados autenticados no cache; a instalação física em Android/iOS deve ser conferida nesses aparelhos.
+
 ## Instalação local com dados reais
 
 ```sh

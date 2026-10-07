@@ -3,13 +3,42 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1.0" />
+    <meta name="theme-color" content="#3182f6" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-title" content="App Monitor" />
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
     <title>APP Monitor • Dispositivos escolares</title>
     <link rel="stylesheet" href="styles.css" />
     <script src="/vendor/zxing/zxing-browser.min.js" defer></script>
     <script src="app.js" defer></script>
+    <script src="/pwa.js" defer></script>
   </head>
   <body>
     <div id="app" aria-live="polite"></div>
     <div id="toast" role="status"></div>
+    <button id="install-app" class="install-app" type="button" hidden>
+      Instalar App Monitor
+    </button>
+    <dialog id="install-help" class="install-help">
+      <h2>App Monitor no seu celular</h2>
+      <p>
+        <strong>Android:</strong> abra o site no Chrome, toque no menu ⋮ e
+        escolha “Instalar aplicativo” ou “Adicionar à tela inicial”.
+      </p>
+      <p>
+        <strong>iPhone ou iPad:</strong> abra o site no Safari, toque em
+        Compartilhar e escolha “Adicionar à Tela de Início”. Se aparecer,
+        mantenha “Abrir como App” ativado e toque em Adicionar.
+      </p>
+      <p>
+        No computador, procure a opção de instalação na barra de endereço ou no
+        menu do Chrome/Edge.
+      </p>
+      <p>Use seu e-mail e senha da escola. É necessário ter internet.</p>
+      <button id="close-install-help" type="button" class="primary">
+        Entendi
+      </button>
+    </dialog>
   </body>
 </html>

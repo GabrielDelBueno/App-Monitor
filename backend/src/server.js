@@ -1175,7 +1175,18 @@ export function createApp({
     "/vendor/qrcode",
     express.static(resolve(root, "node_modules/qrcode/build")),
   );
-  app.use(express.static(resolve(root, "frontend")));
+  app.use(
+    express.static(resolve(root, "frontend"), {
+      setHeaders(res, path) {
+        if (
+          path.endsWith("sw.js") ||
+          path.endsWith("index.html") ||
+          path.endsWith("manifest.webmanifest")
+        )
+          res.set("Cache-Control", "no-cache");
+      },
+    }),
+  );
   app.use((err, _req, res, _next) => {
     if (res.destroyed) {
       _req.releaseRequest?.();
