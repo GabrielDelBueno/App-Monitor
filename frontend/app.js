@@ -1061,10 +1061,17 @@ function bind() {
           `<h3>Editar usuário</h3><form id="editUserForm"><div class="login-actions">${field("Nome completo", `<input name="name" value="${h(user.name)}" maxlength="200" required>`)}${field("E-mail", `<input name="email" type="email" value="${h(user.email)}" maxlength="200" required>`)}${field("Perfil", `<select name="role" ${user.id === state.user.id ? "disabled" : ""}>${options(["PROFESSOR", "TI", "ADMINISTRADOR"], user.role)}</select>`)}<button class="btn primary" type="submit">Salvar alterações</button></div></form>`,
         );
         $("#editUserForm").onsubmit = action(async (e) => {
-          await api(`/users/${user.id}`, {
-            method: "PATCH",
-            body: formValue(e.currentTarget),
-          });
+          const body = formValue(e.currentTarget);
+          await api(`/users/${user.id}`, { method: "PATCH", body });
+          if (
+            user.id === state.user.id &&
+            body.email.toLowerCase() !== user.email.toLowerCase()
+          ) {
+            state.user = null;
+            login();
+            toast("E-mail atualizado. Entre novamente com o novo e-mail.");
+            return;
+          }
           await refresh();
           closeModal();
           toast("Usuário atualizado.");
