@@ -38,6 +38,9 @@ Esse banco começa vazio. Os usuários e tablets fictícios que você testou no 
 
 ## 4. Cadastrar professores e TI
 
+Professores podem abrir o endereço do site e usar **Sou professor — criar minha conta**, informando nome completo, e-mail e senha própria. Esse formulário cria somente perfil Professor. Você acompanha esses cadastros em **Usuários** e pode usar **Editar** para corrigir nome, e-mail e perfil, ou desativar a conta e redefinir a senha. TI e administradores continuam sendo cadastrados pelo administrador.
+
+
 Entre como administrador e abra **Usuários**. Informe nome, e-mail e perfil: **Professor**, **TI** ou **Administrador**. Pode deixar a senha em branco para gerar uma senha provisória automaticamente.
 
 A senha aparece uma única vez após o cadastro. Copie e entregue à pessoa por um canal privado. No primeiro login, ela precisa escolher uma nova senha antes de usar o app. O sistema usa o e-mail como identificação, mas não envia mensagens automaticamente nem verifica a propriedade desse e-mail.

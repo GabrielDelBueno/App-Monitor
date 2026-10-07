@@ -19,3 +19,7 @@ As instruções de instalação e inicialização do ambiente Codex foram salvas
 ## Atualização: instalação pelo navegador
 
 `npm run check` e os 21 testes de integração passaram. Os 3 testes Chromium passaram, incluindo o novo teste de manifesto/ícones, instruções de instalação, service worker, aviso offline, retorno à conexão e comprovação de que apenas `/offline.html` fica no cache. Nenhum banco ou cadastro foi alterado para essa atualização. A instalação física em Android/iPhone e a atualização do serviço público no Render ainda precisam ser conferidas nos aparelhos e no painel do provedor.
+
+## Atualização: autocadastro de professores
+
+22 testes de integração e 4 testes Chromium passaram. O novo fluxo exige nome completo, permite somente Professor no cadastro público, rejeita campos de perfil privilegiado e e-mails duplicados, e impede professores de editar usuários. A edição administrativa de nome/e-mail, a revogação de sessões e a desativação foram verificadas. O navegador percorreu cadastro público e edição pelo administrador. Nenhuma migração ou exclusão de registros é necessária.

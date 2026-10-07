@@ -194,3 +194,92 @@ test("redefinição administrativa revoga sessões, invalida a senha anterior e 
     await f.close();
   }
 });
+test("autocadastro exige nome completo, impede perfis privilegiados e mantém edição administrativa", async () => {
+  const f = await fixture();
+  try {
+    const publicClient = f.browser(),
+      admin = f.browser();
+    const body = {
+      name: "Maria Silva Santos",
+      email: "maria@register.local",
+      password,
+    };
+    assert.equal(
+      (await publicClient("/api/register", "POST", body)).status,
+      403,
+    );
+    createUser(f.db, {
+      name: "Administrador",
+      email: "admin@register.local",
+      password,
+      role: "ADMINISTRADOR",
+    });
+    assert.equal(
+      (await publicClient("/api/register", "POST", { ...body, name: "Maria" }))
+        .status,
+      400,
+    );
+    assert.equal(
+      (
+        await publicClient("/api/register", "POST", {
+          ...body,
+          role: "ADMINISTRADOR",
+        })
+      ).status,
+      400,
+    );
+    assert.equal(
+      (await publicClient("/api/register", "POST", { ...body, role: "TI" }))
+        .status,
+      400,
+    );
+    const registered = await publicClient("/api/register", "POST", body);
+    assert.equal(registered.status, 201);
+    assert.equal(registered.data.role, "PROFESSOR");
+    const id = registered.data.id;
+    assert.equal((await publicClient("/api/me")).data.name, body.name);
+    assert.equal(
+      (await publicClient(`/api/users/${id}`, "PATCH", { role: "TI" })).status,
+      403,
+    );
+    assert.equal(
+      (await f.browser()("/api/register", "POST", body)).status,
+      409,
+    );
+    await admin("/api/login", "POST", {
+      email: "admin@register.local",
+      password,
+    });
+    assert.ok((await admin("/api/users")).data.some((u) => u.id === id));
+    assert.equal(
+      (
+        await admin(`/api/users/${id}`, "PATCH", {
+          name: "Maria Silva Costa",
+          email: "maria.novo@register.local",
+        })
+      ).status,
+      200,
+    );
+    assert.equal((await publicClient("/api/me")).status, 401);
+    assert.equal(
+      (
+        await publicClient("/api/login", "POST", {
+          email: "maria.novo@register.local",
+          password,
+        })
+      ).status,
+      200,
+    );
+    assert.equal(
+      (await publicClient("/api/me")).data.name,
+      "Maria Silva Costa",
+    );
+    assert.equal(
+      (await admin(`/api/users/${id}`, "PATCH", { active: false })).status,
+      200,
+    );
+    assert.equal((await publicClient("/api/me")).status, 401);
+  } finally {
+    await f.close();
+  }
+});

@@ -302,7 +302,7 @@ export function createApp({
       attempt.count = 0;
       attempt.until = time + 900000;
     }
-    if (attempt.count >= 10)
+    if (attempt.count >= 50)
       fail(429, "Muitas tentativas de instalação. Aguarde 15 minutos.");
     const d = z
       .object({
@@ -344,6 +344,51 @@ export function createApp({
     setupAvailable: async () =>
       !!setupToken &&
       !(await get("SELECT id FROM users WHERE role='ADMINISTRADOR'")),
+  });
+  app.post("/api/register", async (req, res) => {
+    const key = `register|${req.ip}`,
+      time = Date.now();
+    for (const [k, v] of attempts) if (v.until < time) attempts.delete(k);
+    const attempt = attempts.get(key) || { count: 0, until: time + 900000 };
+    if (attempt.count >= 10)
+      fail(
+        429,
+        "Muitas tentativas de cadastro. Tente novamente em 15 minutos.",
+      );
+    attempt.count++;
+    attempts.set(key, attempt);
+    if (
+      !(await get(
+        "SELECT id FROM users WHERE role='ADMINISTRADOR' AND active=1",
+      ))
+    )
+      fail(403, "A escola precisa concluir a instalação antes dos cadastros.");
+    const d = z
+      .object({
+        name: text.refine(
+          (value) =>
+            value.split(/\s+/).filter((part) => /\p{L}/u.test(part)).length >=
+            2,
+          "Informe seu nome completo, com nome e sobrenome.",
+        ),
+        email: z.email().max(200),
+        password: z.string().min(12).max(200),
+      })
+      .strict()
+      .parse(req.body);
+    const user = await transaction(db, async () => {
+      const u = await createUser(db, { ...d, role: "PROFESSOR" });
+      await audit(u, "AUTOCADASTRO_PROFESSOR", u.id);
+      await notifyStaff(
+        "Novo professor cadastrado",
+        `${u.name} criou uma conta de professor.`,
+        "users",
+        u.id,
+      );
+      return u;
+    });
+    await issueSession(res, user);
+    res.status(201).json(user);
   });
   app.post("/api/login", async (req, res) => {
     const d = z
@@ -513,28 +558,45 @@ export function createApp({
     mustAdmin(req.user);
     const d = z
       .object({
-        active: z.boolean(),
+        name: text.optional(),
+        email: z.email().max(200).optional(),
+        role: z.enum(["TI", "PROFESSOR", "ADMINISTRADOR"]).optional(),
+        active: z.boolean().optional(),
       })
+      .strict()
+      .refine(
+        (value) => Object.keys(value).length > 0,
+        "Informe uma alteração.",
+      )
       .parse(req.body);
-    if (req.params.id === req.user.id)
-      fail(409, "Você não pode desativar a própria conta.");
-    if (!(await get("SELECT id FROM users WHERE id=?", req.params.id)))
-      fail(404, "Usuário não encontrado.");
+    const existing = await get("SELECT * FROM users WHERE id=?", req.params.id);
+    if (!existing) fail(404, "Usuário não encontrado.");
+    if (
+      req.params.id === req.user.id &&
+      (d.active === false || (d.role && d.role !== "ADMINISTRADOR"))
+    )
+      fail(
+        409,
+        "Você não pode desativar ou retirar o perfil administrador da própria conta.",
+      );
     await transaction(db, async () => {
       await run(
-        "UPDATE users SET active=? WHERE id=?",
-        +d.active,
-        req.params.id,
+        "UPDATE users SET name=?,email=?,role=?,active=? WHERE id=?",
+        d.name ?? existing.name,
+        d.email?.toLowerCase() ?? existing.email,
+        d.role ?? existing.role,
+        d.active === undefined ? existing.active : +d.active,
+        existing.id,
       );
-      if (!d.active)
-        await run("DELETE FROM sessions WHERE user_id=?", req.params.id);
-      await audit(req.user, "ALTERAR_USUARIO", req.params.id, {
-        active: d.active,
-      });
+      if (
+        d.active === false ||
+        (d.role && d.role !== existing.role) ||
+        (d.email && d.email.toLowerCase() !== existing.email)
+      )
+        await run("DELETE FROM sessions WHERE user_id=?", existing.id);
+      await audit(req.user, "ALTERAR_USUARIO", existing.id, d);
     });
-    res.json({
-      ok: true,
-    });
+    res.json({ ok: true });
   });
   app.get("/api/devices", async (req, res) => {
     mustStaff(req.user);

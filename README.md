@@ -61,9 +61,17 @@ npm run bootstrap
 npm start
 ```
 
-Depois do bootstrap, remova `ADMIN_PASSWORD` do arquivo/ambiente. O bootstrap cria apenas o primeiro administrador e recusa sobrescrever contas existentes. O administrador cadastra professores, TI e outros administradores na tela **Usuários**. Deixar a senha em branco gera uma senha provisória, mostrada somente uma vez. Entregue-a por um canal privado. Todos os novos usuários precisam trocá-la no primeiro login. **Redefinir senha** encerra as sessões do usuário e gera outra senha provisória; não há envio automático de e-mail. Cada pessoa pode alterar sua própria senha em **Conta**.
+Depois do bootstrap, remova `ADMIN_PASSWORD` do arquivo/ambiente. O bootstrap cria apenas o primeiro administrador e recusa sobrescrever contas existentes. O administrador cadastra professores, TI e outros administradores na tela **Usuários**. Deixar a senha em branco gera uma senha provisória, mostrada somente uma vez. Entregue-a por um canal privado. As contas criadas pelo administrador precisam trocá-la no primeiro login. **Redefinir senha** encerra as sessões do usuário e gera outra senha provisória; não há envio automático de e-mail. Cada pessoa pode alterar sua própria senha em **Conta**.
 
 O banco padrão é `data/app-monitor.sqlite`. `DATABASE_PATH` permite indicar outro caminho; use um disco persistente. Se `DATABASE_URL` estiver definida, `npm start` e `npm run bootstrap` usam PostgreSQL com TLS verificado. Na hospedagem, `SETUP_TOKEN` permite criar o primeiro administrador pela tela de instalação; remova-o depois. `PORT` define a porta (padrão 3333). Em produção com HTTPS, defina `COOKIE_SECURE=true`. Não use a porta HTTP diretamente para acesso público.
+
+## Cadastro dos professores e edição de usuários
+
+Na tela de entrada, **Sou professor — criar minha conta** permite informar **nome completo**, e-mail, senha própria e confirmação. Nome e sobrenome são obrigatórios. O servidor aceita somente perfil **Professor** nessa rota; tentativas de enviar TI, Administrador ou outros campos são rejeitadas. O cadastro fica disponível depois que a escola tem um administrador e limita tentativas por endereço de rede. O e-mail é usado para login, sem envio automático nem verificação de propriedade.
+
+O professor entra com a senha escolhida. Contas anteriores permanecem preservadas; um e-mail já cadastrado não é sobrescrito. Se o professor já tem conta, deve entrar com ela ou pedir redefinição ao administrador.
+
+O administrador mantém **Usuários**, com **Editar** para nome, e-mail e perfil, além de desativação/reativação e redefinição de senha. Troca de e-mail ou perfil encerra as sessões da conta para aplicar o novo acesso. O administrador pode editar seu próprio nome e e-mail, mas não desativar ou retirar o perfil administrador da própria conta.
 
 ## Fluxo operacional
 

@@ -169,8 +169,9 @@ function login() {
   closeModal();
   if (authConfig.needsSetup) return setupPage();
   $("#app").innerHTML =
-    `<div class="login"><div class="login-card"><div class="login-logo">AM</div><h1>APP Monitor</h1><p class="muted">Controle de dispositivos escolares</p><form id="loginForm"><div class="login-actions">${field("E-mail", '<input name="email" type="email" autocomplete="username" required>')}${field("Senha", '<input name="password" type="password" autocomplete="current-password" required>')}<button class="btn primary" type="submit">Entrar</button></div></form><div class="notice">Use a conta cadastrada pelo administrador da escola.</div>${authConfig.govbr ? `<p><a class="btn primary govbr-login" href="/auth/govbr">Entrar com GOV.BR${authConfig.environment === "homologacao" ? " (homologação)" : ""}</a></p><p class="muted">No primeiro acesso, entre com sua conta da escola e vincule GOV.BR em Conta.</p>` : ""}${button("Alternar tema", 'id="loginTheme"')}</div></div>`;
+    `<div class="login"><div class="login-card"><div class="login-logo">AM</div><h1>APP Monitor</h1><p class="muted">Controle de dispositivos escolares</p><form id="loginForm"><div class="login-actions">${field("E-mail", '<input name="email" type="email" autocomplete="username" required>')}${field("Senha", '<input name="password" type="password" autocomplete="current-password" required>')}<button class="btn primary" type="submit">Entrar</button></div></form><p><button class="btn ghost" id="registerTeacher" type="button">Sou professor — criar minha conta</button></p><div class="notice">Professores podem se cadastrar. Acessos de TI e administrador são gerenciados pela escola.</div>${authConfig.govbr ? `<p><a class="btn primary govbr-login" href="/auth/govbr">Entrar com GOV.BR${authConfig.environment === "homologacao" ? " (homologação)" : ""}</a></p><p class="muted">No primeiro acesso, entre com sua conta da escola e vincule GOV.BR em Conta.</p>` : ""}${button("Alternar tema", 'id="loginTheme"')}</div></div>`;
   $("#loginTheme").onclick = theme;
+  $("#registerTeacher").onclick = teacherRegistration;
   $("#loginForm").onsubmit = action(async (e) => {
     const b = e.currentTarget.querySelector("button");
     b.disabled = true;
@@ -183,6 +184,29 @@ function login() {
       await refresh();
     } finally {
       b.disabled = false;
+    }
+  });
+}
+function teacherRegistration() {
+  $("#app").innerHTML =
+    `<div class="login"><div class="login-card"><div class="login-logo">AM</div><h1>Cadastro de professor</h1><p>Crie sua conta de Professor. Use seu nome inteiro e seu e-mail.</p><form id="teacherRegistration"><div class="login-actions">${field("Nome completo", '<input name="name" autocomplete="name" maxlength="200" placeholder="Nome e sobrenomes" required>')}${field("E-mail", '<input name="email" type="email" autocomplete="email" maxlength="200" required>')}${field("Senha (mínimo 12 caracteres)", '<input name="password" type="password" autocomplete="new-password" minlength="12" maxlength="200" required>')}${field("Confirme a senha", '<input name="confirmation" type="password" autocomplete="new-password" minlength="12" maxlength="200" required>')}<button class="btn primary" type="submit">Criar conta de professor</button></div></form><p class="muted">O administrador da escola pode consultar e gerenciar sua conta.</p><button class="btn ghost" id="backToLogin" type="button">Voltar para entrar</button></div></div>`;
+  $("#backToLogin").onclick = login;
+  $("#teacherRegistration").onsubmit = action(async (e) => {
+    const body = formValue(e.currentTarget);
+    if (body.password !== body.confirmation)
+      return toast("As senhas não coincidem.");
+    if (body.name.trim().split(/\s+/).length < 2)
+      return toast("Informe seu nome completo, com nome e sobrenome.");
+    delete body.confirmation;
+    const button = e.currentTarget.querySelector("button");
+    button.disabled = true;
+    try {
+      state.user = await api("/register", { method: "POST", body });
+      state.page = "dashboard";
+      await refresh();
+      toast("Conta de professor criada.");
+    } finally {
+      button.disabled = false;
     }
   });
 }
@@ -723,14 +747,14 @@ function users() {
   return (
     hero(
       "Usuários",
-      "O administrador cadastra professores, equipe de TI e outros administradores.",
+      "Consulte e edite os usuários. Professores também podem se cadastrar pela tela de entrada.",
       button("＋ Novo usuário", 'id="newUser"', "primary"),
     ) +
     `<div class="card">${table(
       ["Nome", "E-mail", "Perfil", "Situação", "Ação"],
       state.users.map(
         (u) =>
-          `<tr><td>${h(u.name)}</td><td>${h(u.email)}</td><td>${labels[u.role]}</td><td>${u.active ? "Ativo" : "Inativo"}</td><td>${u.id !== state.user.id ? button(u.active ? "Desativar" : "Reativar", `data-user="${u.id}"`, u.active ? "danger" : "success") + " " + button("Redefinir senha", `data-reset-password="${u.id}"`) : ""}</td></tr>`,
+          `<tr><td>${h(u.name)}</td><td>${h(u.email)}</td><td>${labels[u.role]}</td><td>${u.active ? "Ativo" : "Inativo"}</td><td>${button("Editar", `data-edit-user="${u.id}"`)} ${u.id !== state.user.id ? button(u.active ? "Desativar" : "Reativar", `data-user="${u.id}"`, u.active ? "danger" : "success") + " " + button("Redefinir senha", `data-reset-password="${u.id}"`) : ""}</td></tr>`,
       ),
     )}</div>`
   );
@@ -1029,6 +1053,24 @@ function bind() {
         toast("Usuário cadastrado.");
       });
     };
+  $$("[data-edit-user]").forEach(
+    (button) =>
+      (button.onclick = () => {
+        const user = state.users.find((u) => u.id === button.dataset.editUser);
+        modal(
+          `<h3>Editar usuário</h3><form id="editUserForm"><div class="login-actions">${field("Nome completo", `<input name="name" value="${h(user.name)}" maxlength="200" required>`)}${field("E-mail", `<input name="email" type="email" value="${h(user.email)}" maxlength="200" required>`)}${field("Perfil", `<select name="role" ${user.id === state.user.id ? "disabled" : ""}>${options(["PROFESSOR", "TI", "ADMINISTRADOR"], user.role)}</select>`)}<button class="btn primary" type="submit">Salvar alterações</button></div></form>`,
+        );
+        $("#editUserForm").onsubmit = action(async (e) => {
+          await api(`/users/${user.id}`, {
+            method: "PATCH",
+            body: formValue(e.currentTarget),
+          });
+          await refresh();
+          closeModal();
+          toast("Usuário atualizado.");
+        });
+      }),
+  );
   $$("[data-user]").forEach(
     (b) =>
       (b.onclick = action(async () => {
