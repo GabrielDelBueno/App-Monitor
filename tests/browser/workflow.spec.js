@@ -68,7 +68,9 @@ test("ciclo escolar completo pelas telas e layout móvel", async ({ page }) => {
       .getByRole("button", { name: "＋ Cadastrar dispositivo" })
       .click();
     await page.getByLabel("Patrimônio", { exact: true }).fill(`TB-${n}`);
-    await page.getByLabel("Código QR", { exact: true }).fill(`QR-${n}`);
+    await page
+      .getByLabel("Código QR ou código de barras", { exact: true })
+      .fill(`QR-${n}`);
     await page.getByRole("button", { name: "Salvar dispositivo" }).click();
     await expect(page.locator("#modal")).toHaveCount(0);
   }

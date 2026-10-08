@@ -159,3 +159,9 @@ As versões ZIP originais não foram alteradas.
 ### Build atrás de um proxy com CA própria
 
 Em redes que exigem um proxy e uma autoridade certificadora adicional, o Dockerfile aceita a CA via secret de build, sem incorporá-la à imagem. Passe `HTTP_PROXY`, `HTTPS_PROXY` e `NO_PROXY` com os mecanismos de build do Docker e o arquivo confiável como `--secret id=npm_ca,src=/caminho/ca.pem`. Dependendo da rede, o hostname do proxy também precisa ser resolvido dentro do build. Não desative a verificação TLS.
+
+## Leitura pela câmera
+
+O leitor aceita QR Code e códigos de barras Code 128, Code 39, EAN-13, EAN-8, UPC-A, UPC-E, ITF e Codabar. No cadastro do dispositivo, informe o conteúdo da etiqueta em **Código QR ou código de barras**; a leitura também pode corresponder ao patrimônio. Códigos desconhecidos não encerram a câmera.
+
+A câmera traseira usa foco contínuo quando disponível, detecção nativa em navegadores compatíveis e leitor ZXing como alternativa. As tentativas do ZXing passam de 500 para 120 ms. A velocidade efetiva depende do aparelho, iluminação e qualidade da etiqueta. A atualização da interface estática inclui `/scanner.js`.

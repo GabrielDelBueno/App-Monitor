@@ -27,3 +27,7 @@ As instruções de instalação e inicialização do ambiente Codex foram salvas
 ## Atualização: interface estática e tela de conexão
 
 `npm run build:static` e `npm run check` passaram. Passaram os 22 testes de integração e os 5 testes Chromium. O novo teste usa frontend separado, simula HTML do cold start na API e verifica tela AM, recuperação, login com cookie, sessão após recarregar, logout e bloqueio de origem externa não autorizada. Nenhum registro do banco foi migrado ou excluído. O novo Static Site e o encaminhamento real do Render ainda precisam ser publicados e verificados no provedor.
+
+## Atualização: leitor QR e códigos de barras
+
+`npm run check`, 22 testes de integração e os 8 testes Chromium da suíte completa passaram. Depois, os 4 testes específicos do leitor passaram, incluindo um teste adicional de detecção nativa simulada que mantém a câmera após código recusado. Imagens reais de QR e Code 39 foram decodificadas pelo ZXing usando vídeo de canvas; o encerramento das trilhas de câmera, inclusive após fechamento durante permissão pendente, foi verificado. Os demais formatos configurados não foram exercitados individualmente. O intervalo de tentativas do ZXing foi reduzido de 500 para 120 ms; velocidade e foco em câmera física ainda precisam ser medidos no celular. Nenhuma migração ou exclusão de dados. Publicação no Render depende da atualização do Static Site.

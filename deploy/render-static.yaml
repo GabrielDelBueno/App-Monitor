@@ -53,3 +53,6 @@ services:
       - path: /auth/*
         name: Cache-Control
         value: no-store
+      - path: /scanner.js
+        name: Cache-Control
+        value: no-cache

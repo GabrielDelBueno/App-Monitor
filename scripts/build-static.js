@@ -9,6 +9,7 @@ mkdirSync(target, { recursive: true });
 for (const name of [
   "index.html",
   "app.js",
+  "scanner.js",
   "styles.css",
   "connection.js",
   "pwa.js",

@@ -469,7 +469,7 @@ function release() {
   return (
     hero(
       l ? "Liberar dispositivos extras" : "Liberar dispositivos",
-      "Selecione um agendamento aprovado e leia os QR Codes dos equipamentos.",
+      "Selecione um agendamento aprovado e leia os QR Codes ou códigos de barras dos equipamentos.",
     ) +
     `<div class="card">${
       l
@@ -484,7 +484,7 @@ function release() {
               )
               .join("")}</select>`,
           )
-    }<div class="toolbar section">${field("QR Code / patrimônio", '<input id="qrInput" placeholder="Leia ou digite o código">')}${button("Adicionar código", 'id="addCode"', "primary")}${button("📷 Abrir câmera", 'id="scan"')}${button(`Liberar ${state.selection.size}${needed ? ` / ${needed}` : ""} dispositivos`, 'id="releaseDevices"', "success")}</div></div><div class="card section"><h2>Equipamentos disponíveis</h2>${table(
+    }<div class="toolbar section">${field("QR / código de barras / patrimônio", '<input id="qrInput" placeholder="Leia ou digite o código">')}${button("Adicionar código", 'id="addCode"', "primary")}${button("📷 Abrir câmera", 'id="scan"')}${button(`Liberar ${state.selection.size}${needed ? ` / ${needed}` : ""} dispositivos`, 'id="releaseDevices"', "success")}</div></div><div class="card section"><h2>Equipamentos disponíveis</h2>${table(
       ["Selecionar", "Patrimônio", "Tipo", "Estado"],
       eligible.map(
         (d) =>
@@ -515,6 +515,7 @@ function addCode(code) {
   state.selection.add(d.id);
   render();
   toast(`${d.number} selecionado.`);
+  return true;
 }
 function inventory() {
   return (
@@ -537,7 +538,7 @@ function inventoryTable(devices) {
 }
 function deviceModal(d) {
   modal(
-    `<h3>${d ? "Editar estado" : "Cadastrar dispositivo"}</h3><form id="deviceForm"><div class="form-grid">${!d ? field("Patrimônio", '<input name="number" maxlength="200" required>') + field("Código QR", '<input name="qr" maxlength="200" required>') + field("Tipo", `<select name="type">${options(["TABLET", "NOTEBOOK", "CHROMEBOOK"], "TABLET")}</select>`) : `<p><b>${h(d.number)}</b></p>`}${field("Estado", `<select name="status">${options(["BOM_ESTADO", "CONSERVADO", "EM_MANUTENCAO", "QUEBRADO"], d?.status || "BOM_ESTADO")}</select>`)}</div>${field("Observações", `<textarea name="notes" maxlength="2000">${h(d?.notes || "")}</textarea>`)}<button class="btn primary section">Salvar dispositivo</button></form>`,
+    `<h3>${d ? "Editar estado" : "Cadastrar dispositivo"}</h3><form id="deviceForm"><div class="form-grid">${!d ? field("Patrimônio", '<input name="number" maxlength="200" required>') + field("Código QR ou código de barras", '<input name="qr" maxlength="200" required>') + field("Tipo", `<select name="type">${options(["TABLET", "NOTEBOOK", "CHROMEBOOK"], "TABLET")}</select>`) : `<p><b>${h(d.number)}</b></p>`}${field("Estado", `<select name="status">${options(["BOM_ESTADO", "CONSERVADO", "EM_MANUTENCAO", "QUEBRADO"], d?.status || "BOM_ESTADO")}</select>`)}</div>${field("Observações", `<textarea name="notes" maxlength="2000">${h(d?.notes || "")}</textarea>`)}<button class="btn primary section">Salvar dispositivo</button></form>`,
     true,
   );
   $("#deviceForm").onsubmit = action(async (e) => {
@@ -781,7 +782,7 @@ function auditPage() {
 async function scan() {
   const appGeneration = generation;
   modal(
-    `<h3>Ler QR Code</h3><p>Aponte a câmera para o código. Em produção, a câmera exige HTTPS.</p><div class="camera-box"><video id="cameraVideo" autoplay playsinline></video></div><p id="cameraStatus" role="status">Abrindo câmera…</p>${field("Leitor USB / entrada manual", '<input id="manualCode" placeholder="Código QR ou patrimônio">')}${button("Adicionar", 'id="manualAdd"', "primary")}`,
+    `<h3>Ler QR Code ou código de barras</h3><p>Aponte a câmera traseira para o código, com boa iluminação e o código inteiro visível.</p><div class="camera-box"><video id="cameraVideo" autoplay playsinline></video></div><p id="cameraStatus" role="status">Abrindo câmera…</p>${field("Leitor USB / entrada manual", '<input id="manualCode" placeholder="QR, código de barras ou patrimônio">')}${button("Adicionar", 'id="manualAdd"', "primary")}`,
     true,
   );
   $("#manualAdd").onclick = () => addCode($("#manualCode").value);
@@ -789,21 +790,24 @@ async function scan() {
     if (e.key === "Enter") $("#manualAdd").click();
   };
   try {
-    if (!window.ZXingBrowser)
-      throw Error("Biblioteca de câmera indisponível. Use a entrada manual.");
-    const reader = new ZXingBrowser.BrowserQRCodeReader();
+    const reader = {};
     scannerReader = reader;
     const video = $("#cameraVideo");
-    const controls = await reader.decodeFromConstraints(
-      { video: { facingMode: "environment" } },
-      video,
-      (result, _error, controls) => {
-        if (result) {
-          controls.stop();
-          addCode(result.getText());
-        }
-      },
-    );
+    let previousCode = "",
+      previousTime = 0;
+    const controls = await window.startMonitorScanner(video, (code) => {
+      if (
+        scannerReader !== reader ||
+        generation !== appGeneration ||
+        !video.isConnected
+      )
+        return true;
+      const now = Date.now();
+      if (code === previousCode && now - previousTime < 1500) return false;
+      previousCode = code;
+      previousTime = now;
+      return addCode(code) === true;
+    });
     if (
       !video.isConnected ||
       scannerReader !== reader ||
@@ -813,7 +817,8 @@ async function scan() {
       return;
     }
     scannerControls = controls;
-    $("#cameraStatus").textContent = "Câmera ativa. Aponte para um QR Code.";
+    $("#cameraStatus").textContent =
+      "Câmera ativa. Aponte para um QR Code ou código de barras.";
   } catch {
     if ($("#cameraStatus"))
       $("#cameraStatus").textContent =
