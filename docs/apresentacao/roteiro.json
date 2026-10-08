@@ -1,0 +1,286 @@
+[
+  {
+    "titulo": "APP Monitor",
+    "perfil": "GUIA DE USO",
+    "subtitulo": "Tecnologia da escola, organizada em um só lugar.",
+    "passos": [
+      "Acompanhe os equipamentos e os empréstimos.",
+      "Professor: solicite, utilize e devolva.",
+      "Administrador: gerencie, aprove e confira."
+    ],
+    "imagem": "03-painel-administrador",
+    "observacao": "Guia com telas demonstrativas do aplicativo."
+  },
+  {
+    "titulo": "Quem faz o quê?",
+    "perfil": "VISÃO GERAL",
+    "subtitulo": "Cada perfil tem suas funções.",
+    "passos": [
+      "Professor: agenda, acompanha e registra a utilização.",
+      "Administrador: gerencia usuários e inventário; também opera as liberações.",
+      "TI: aprova, libera e confere os aparelhos."
+    ],
+    "imagem": null,
+    "observacao": "O cadastro público cria somente contas de Professor."
+  },
+  {
+    "titulo": "O caminho de um empréstimo",
+    "perfil": "VISÃO GERAL",
+    "subtitulo": "Do pedido ao relatório final.",
+    "passos": [
+      "1. Professor solicita → equipe aprova.",
+      "2. Equipe libera → professor utiliza.",
+      "3. Professor devolve → equipe confere.",
+      "4. As contas responsáveis assinam o relatório."
+    ],
+    "imagem": null,
+    "observacao": "A liberação ocorre no dia do agendamento."
+  },
+  {
+    "titulo": "Como entrar no app",
+    "perfil": "TODOS OS PERFIS",
+    "subtitulo": "Use o navegador do computador ou celular.",
+    "passos": [
+      "1. Abra o endereço do App Monitor.",
+      "2. Informe seu e-mail e sua senha.",
+      "3. Clique em Entrar.",
+      "4. Confira seu nome e perfil no cabeçalho."
+    ],
+    "imagem": "01-login",
+    "observacao": "Endereço: app-monitor-interface.onrender.com"
+  },
+  {
+    "titulo": "Professor: criar sua conta",
+    "perfil": "PRIMEIRO ACESSO",
+    "subtitulo": "O próprio professor pode se cadastrar.",
+    "passos": [
+      "1. Clique em Sou professor — criar minha conta.",
+      "2. Informe seu nome inteiro e e-mail.",
+      "3. Crie uma senha com pelo menos 12 caracteres.",
+      "4. Confirme a senha e clique em Criar conta de professor."
+    ],
+    "imagem": "02-cadastro-professor",
+    "observacao": "Contas de administrador e TI são criadas pela escola."
+  },
+  {
+    "titulo": "Trocar a senha provisória",
+    "perfil": "PRIMEIRO ACESSO",
+    "subtitulo": "Para contas criadas pelo administrador.",
+    "passos": [
+      "1. Entre com o e-mail e a senha provisória recebida.",
+      "2. Digite a senha provisória no formulário.",
+      "3. Crie e confirme sua nova senha.",
+      "4. Clique em Salvar minha senha."
+    ],
+    "imagem": "09-primeira-senha",
+    "observacao": "A troca é obrigatória antes de usar as funções do app."
+  },
+  {
+    "titulo": "Professor: sua visão geral",
+    "perfil": "PROFESSOR",
+    "subtitulo": "Veja seus pedidos e movimentações.",
+    "passos": [
+      "1. Use Visão geral para acompanhar suas atividades.",
+      "2. Abra Agendamentos para ver os pedidos.",
+      "3. Em Meus dispositivos, acompanhe os empréstimos.",
+      "4. Consulte as notificações no sino."
+    ],
+    "imagem": "10-painel-professor",
+    "observacao": "O professor acompanha os próprios registros."
+  },
+  {
+    "titulo": "Fazer um agendamento",
+    "perfil": "PROFESSOR",
+    "subtitulo": "Solicite os aparelhos para sua aula.",
+    "passos": [
+      "1. Clique em + Novo agendamento.",
+      "2. Escolha data e horário; informe a turma.",
+      "3. Selecione o tipo e a quantidade de aparelhos.",
+      "4. Clique em Salvar agendamento."
+    ],
+    "imagem": "11-novo-agendamento",
+    "observacao": "Tipos: Tablet, Notebook, Chromebook e Celular. Até 25 aparelhos por pedido."
+  },
+  {
+    "titulo": "Acompanhar a aprovação",
+    "perfil": "PROFESSOR",
+    "subtitulo": "Confira o pedido antes de retirar os aparelhos.",
+    "passos": [
+      "1. Abra Agendamentos.",
+      "2. Pendente: o pedido aguarda aprovação da equipe.",
+      "3. Aprovado: combine a retirada com a equipe.",
+      "4. Se editar o pedido, ele volta para aprovação."
+    ],
+    "imagem": "12-pedido-pendente",
+    "observacao": "O professor solicita; a equipe registra a liberação."
+  },
+  {
+    "titulo": "Usar e devolver os aparelhos",
+    "perfil": "PROFESSOR",
+    "subtitulo": "Registre a utilização da turma.",
+    "passos": [
+      "1. Abra Meus dispositivos → Abrir movimentação.",
+      "2. Informe o aluno associado a cada aparelho.",
+      "3. Escreva o relato da aula e das ocorrências.",
+      "4. Entregue os aparelhos e clique em Enviar devolução."
+    ],
+    "imagem": "16-uso-e-devolucao",
+    "observacao": "Depois do envio, a equipe precisa conferir o retorno físico."
+  },
+  {
+    "titulo": "Assinar o relatório",
+    "perfil": "PROFESSOR",
+    "subtitulo": "Finalize o registro após a conferência.",
+    "passos": [
+      "1. Abra Relatórios e assinaturas.",
+      "2. Clique em Ver relatório e confira as informações.",
+      "3. Desenhe sua assinatura no espaço indicado.",
+      "4. Clique em Confirmar minha assinatura."
+    ],
+    "imagem": "18-assinatura",
+    "observacao": "Uma assinatura de professor pendente pode impedir novos pedidos."
+  },
+  {
+    "titulo": "Administrador: visão geral",
+    "perfil": "ADMINISTRADOR",
+    "subtitulo": "Acompanhe a operação da escola.",
+    "passos": [
+      "1. Consulte os indicadores e as notificações.",
+      "2. Abra Usuários para gerenciar os acessos.",
+      "3. Use Inventário para cuidar dos aparelhos.",
+      "4. Acompanhe pedidos, retornos e relatórios."
+    ],
+    "imagem": "03-painel-administrador",
+    "observacao": "TI tem funções operacionais; a gestão de usuários é do administrador."
+  },
+  {
+    "titulo": "Gerenciar os usuários",
+    "perfil": "ADMINISTRADOR",
+    "subtitulo": "Cadastre e mantenha os acessos da equipe.",
+    "passos": [
+      "1. Abra Usuários → + Novo usuário.",
+      "2. Informe nome, e-mail e perfil correto.",
+      "3. Cadastre e entregue a senha provisória em particular.",
+      "4. Use as ações da lista para editar, redefinir senha ou desativar."
+    ],
+    "imagem": "05-cadastrar-usuario",
+    "observacao": "Os professores também podem criar suas próprias contas na tela de entrada."
+  },
+  {
+    "titulo": "Conhecer o inventário",
+    "perfil": "ADMINISTRADOR / TI",
+    "subtitulo": "Identifique cada equipamento.",
+    "passos": [
+      "1. Abra Inventário.",
+      "2. Pesquise controle interno, série, QR, fabricante ou modelo.",
+      "3. Abra Editar dispositivo para completar os dados.",
+      "4. Use QR para visualizar e imprimir a etiqueta."
+    ],
+    "imagem": "06-inventario",
+    "observacao": "Fabricante e modelo aparecem no inventário; os pedidos continuam por tipo."
+  },
+  {
+    "titulo": "Importar a planilha da escola",
+    "perfil": "ADMINISTRADOR",
+    "subtitulo": "Confira a seleção antes de gravar.",
+    "passos": [
+      "1. Abra Inventário → Importar planilha.",
+      "2. Selecione o .xls exportado pelo inventário escolar.",
+      "3. Confira quantidades, conflitos e séries ausentes.",
+      "4. Clique em Importar dispositivos."
+    ],
+    "imagem": "08-importar-planilha",
+    "observacao": "Entram somente os tipos selecionados com status Disponível; os demais ficam de fora."
+  },
+  {
+    "titulo": "Aprovar um pedido",
+    "perfil": "ADMINISTRADOR / TI",
+    "subtitulo": "Prepare a retirada dos equipamentos.",
+    "passos": [
+      "1. Abra Agendamentos.",
+      "2. Confira professor, turma, data, tipo e quantidade.",
+      "3. Clique em Aprovar no pedido pendente.",
+      "4. No dia agendado, clique em Liberar."
+    ],
+    "imagem": "13-aprovar-pedido",
+    "observacao": "Confira a disponibilidade física antes da entrega."
+  },
+  {
+    "titulo": "Liberar os dispositivos",
+    "perfil": "ADMINISTRADOR / TI",
+    "subtitulo": "Escolha os aparelhos que serão entregues.",
+    "passos": [
+      "1. Confira o agendamento selecionado.",
+      "2. Leia o QR ou código de barras, ou digite o identificador.",
+      "3. Também é possível marcar os aparelhos na lista.",
+      "4. Confira a quantidade e clique em Liberar dispositivos."
+    ],
+    "imagem": "14-liberar-dispositivos",
+    "observacao": "O tipo deve corresponder ao pedido; aparelhos em uso ou indisponíveis são bloqueados."
+  },
+  {
+    "titulo": "Apontar a câmera corretamente",
+    "perfil": "ADMINISTRADOR / TI",
+    "subtitulo": "Use a linha para escolher a etiqueta desejada.",
+    "passos": [
+      "1. Clique em Abrir câmera e permita o acesso.",
+      "2. Alinhe a etiqueta à linha vermelha central.",
+      "3. Mantenha o código completo dentro da moldura.",
+      "4. Afaste as outras etiquetas e procure boa iluminação."
+    ],
+    "imagem": "15-camera-mira",
+    "observacao": "A leitura aceita QR e barras com identificador cadastrado. Imagem de câmera simulada."
+  },
+  {
+    "titulo": "Conferir a devolução",
+    "perfil": "ADMINISTRADOR / TI",
+    "subtitulo": "Confira os aparelhos recebidos.",
+    "passos": [
+      "1. Abra Movimentações e retorno → Abrir movimentação.",
+      "2. Compare os aparelhos físicos com a lista.",
+      "3. Atualize o estado e registre comentários quando necessário.",
+      "4. Clique em Concluir conferência e assine o relatório."
+    ],
+    "imagem": "17-conferir-retorno",
+    "observacao": "A devolução enviada pelo professor ainda depende desta conferência."
+  },
+  {
+    "titulo": "Consultar o histórico e o PDF",
+    "perfil": "TODOS OS PERFIS",
+    "subtitulo": "Recupere os registros concluídos.",
+    "passos": [
+      "1. Abra Histórico.",
+      "2. Localize o empréstimo desejado.",
+      "3. Clique em Visualizar / PDF.",
+      "4. Use Imprimir / salvar PDF para guardar uma cópia."
+    ],
+    "imagem": "19-relatorio",
+    "observacao": "As assinaturas são registros manuscritos de contas autenticadas, sem certificação ICP-Brasil."
+  },
+  {
+    "titulo": "Usar no celular",
+    "perfil": "TODOS OS PERFIS",
+    "subtitulo": "O navegador já permite usar o aplicativo.",
+    "passos": [
+      "1. Abra o mesmo endereço no navegador do celular.",
+      "2. Entre com sua conta normalmente.",
+      "3. Se quiser, adicione um atalho à tela inicial.",
+      "4. Para ler etiquetas, permita o acesso à câmera."
+    ],
+    "imagem": "20-celular",
+    "observacao": "No plano gratuito, a conexão inicial com o servidor pode demorar."
+  },
+  {
+    "titulo": "Pronto para começar",
+    "perfil": "RESUMO",
+    "subtitulo": "Uma conta, um pedido e um registro completo.",
+    "passos": [
+      "Professor: entrar → agendar → utilizar → devolver → assinar.",
+      "Administrador: gerenciar → aprovar → liberar → conferir → assinar.",
+      "Dificuldade com a senha? Procure o administrador.",
+      "Série ausente? Confira a etiqueta S/N e complete o inventário."
+    ],
+    "imagem": null,
+    "observacao": "Acesse: https://app-monitor-interface.onrender.com"
+  }
+]
