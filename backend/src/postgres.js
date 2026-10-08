@@ -85,6 +85,36 @@ export async function openPostgres(
       await query(
         "ALTER TABLE users ADD COLUMN IF NOT EXISTS must_change_password INTEGER NOT NULL DEFAULT 0",
       );
+      for (const column of [
+        "internal_id",
+        "serial_number",
+        "manufacturer",
+        "model",
+      ])
+        await query(
+          `ALTER TABLE devices ADD COLUMN IF NOT EXISTS ${column} TEXT NOT NULL DEFAULT ''`,
+        );
+      const constraints = await query(
+        "SELECT conname,pg_get_constraintdef(oid) AS definition FROM pg_constraint WHERE conrelid='devices'::regclass AND contype='c'",
+      );
+      for (const constraint of constraints.rows) {
+        if (
+          constraint.definition.includes("'TABLET'") &&
+          !constraint.definition.includes("'CELULAR'")
+        ) {
+          const name = '"' + constraint.conname.replaceAll('"', '""') + '"';
+          await query(`ALTER TABLE devices DROP CONSTRAINT ${name}`);
+          await query(
+            "ALTER TABLE devices ADD CONSTRAINT devices_type_check CHECK(type IN ('TABLET','NOTEBOOK','CHROMEBOOK','CELULAR'))",
+          );
+        }
+      }
+      await query(
+        "CREATE UNIQUE INDEX IF NOT EXISTS devices_serial ON devices(serial_number) WHERE serial_number <> ''",
+      );
+      await query(
+        "CREATE UNIQUE INDEX IF NOT EXISTS devices_internal ON devices(internal_id) WHERE internal_id <> ''",
+      );
     });
     return db;
   } catch (error) {

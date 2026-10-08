@@ -20,7 +20,7 @@ export function verifyPassword(password, hash) {
 export const schema = `
  CREATE TABLE IF NOT EXISTS users(id TEXT PRIMARY KEY,name TEXT NOT NULL,email TEXT NOT NULL UNIQUE,password TEXT NOT NULL,role TEXT NOT NULL CHECK(role IN ('TI','PROFESSOR','ADMINISTRADOR')),active INTEGER NOT NULL DEFAULT 1,created_at TEXT NOT NULL);
  CREATE TABLE IF NOT EXISTS sessions(token TEXT PRIMARY KEY,user_id TEXT NOT NULL REFERENCES users(id),expires_at INTEGER NOT NULL);
- CREATE TABLE IF NOT EXISTS devices(id TEXT PRIMARY KEY,number TEXT NOT NULL UNIQUE,qr TEXT NOT NULL UNIQUE,type TEXT NOT NULL CHECK(type IN ('TABLET','NOTEBOOK','CHROMEBOOK')),status TEXT NOT NULL CHECK(status IN ('BOM_ESTADO','CONSERVADO','EM_MANUTENCAO','QUEBRADO')),notes TEXT NOT NULL DEFAULT '',active INTEGER NOT NULL DEFAULT 1);
+ CREATE TABLE IF NOT EXISTS devices(id TEXT PRIMARY KEY,number TEXT NOT NULL UNIQUE,qr TEXT NOT NULL UNIQUE,type TEXT NOT NULL CHECK(type IN ('TABLET','NOTEBOOK','CHROMEBOOK','CELULAR')),status TEXT NOT NULL CHECK(status IN ('BOM_ESTADO','CONSERVADO','EM_MANUTENCAO','QUEBRADO')),notes TEXT NOT NULL DEFAULT '',active INTEGER NOT NULL DEFAULT 1,internal_id TEXT NOT NULL DEFAULT '',serial_number TEXT NOT NULL DEFAULT '',manufacturer TEXT NOT NULL DEFAULT '',model TEXT NOT NULL DEFAULT '');
  CREATE TABLE IF NOT EXISTS appointments(id TEXT PRIMARY KEY,teacher_id TEXT NOT NULL REFERENCES users(id),date TEXT NOT NULL,time TEXT NOT NULL,class_name TEXT NOT NULL,type TEXT NOT NULL,quantity INTEGER NOT NULL CHECK(quantity BETWEEN 1 AND 25),extras INTEGER NOT NULL DEFAULT 0 CHECK(extras BETWEEN 0 AND 5),status TEXT NOT NULL DEFAULT 'PENDENTE',created_at TEXT NOT NULL);
  CREATE TABLE IF NOT EXISTS loans(id TEXT PRIMARY KEY,appointment_id TEXT REFERENCES appointments(id),teacher_id TEXT NOT NULL REFERENCES users(id),ti_id TEXT NOT NULL REFERENCES users(id),class_name TEXT NOT NULL,departed_at TEXT NOT NULL,returned_at TEXT,report TEXT NOT NULL DEFAULT '',status TEXT NOT NULL DEFAULT 'EM_USO');
  CREATE TABLE IF NOT EXISTS loan_items(id TEXT PRIMARY KEY,loan_id TEXT NOT NULL REFERENCES loans(id),device_id TEXT NOT NULL REFERENCES devices(id),student TEXT NOT NULL DEFAULT '',departure_status TEXT NOT NULL,return_status TEXT,ti_comment TEXT NOT NULL DEFAULT '',UNIQUE(loan_id,device_id));
@@ -51,6 +51,53 @@ export function openDatabase(path) {
       "ALTER TABLE users ADD COLUMN must_change_password INTEGER NOT NULL DEFAULT 0",
     );
   }
+  for (const column of [
+    "internal_id",
+    "serial_number",
+    "manufacturer",
+    "model",
+  ]) {
+    if (
+      !db
+        .prepare("PRAGMA table_info(devices)")
+        .all()
+        .some((c) => c.name === column)
+    )
+      db.exec(
+        `ALTER TABLE devices ADD COLUMN ${column} TEXT NOT NULL DEFAULT ''`,
+      );
+  }
+  const deviceSql = db
+    .prepare("SELECT sql FROM sqlite_master WHERE name='devices'")
+    .get().sql;
+  if (!deviceSql.includes("'CELULAR'")) {
+    // Rebuild only the device table; IDs and all references remain unchanged.
+    db.exec("PRAGMA foreign_keys=OFF; BEGIN IMMEDIATE;");
+    try {
+      const definition = schema.match(
+        /CREATE TABLE IF NOT EXISTS devices\([^;]+;/,
+      )[0];
+      db.exec(definition.replace("IF NOT EXISTS devices", "devices_updated"));
+      const columns =
+        "id,number,qr,type,status,notes,active,internal_id,serial_number,manufacturer,model";
+      db.exec(`INSERT INTO devices_updated(${columns}) SELECT ${columns} FROM devices;
+        DROP TABLE devices; ALTER TABLE devices_updated RENAME TO devices;`);
+      if (db.prepare("PRAGMA foreign_key_check").all().length)
+        throw Error("Referências inválidas na atualização do inventário.");
+      db.exec("COMMIT");
+    } catch (error) {
+      db.exec("ROLLBACK");
+      throw error;
+    } finally {
+      db.exec("PRAGMA foreign_keys=ON");
+    }
+  }
+  db.exec(
+    "CREATE UNIQUE INDEX IF NOT EXISTS devices_serial ON devices(serial_number) WHERE serial_number <> ''",
+  );
+  db.exec(
+    "CREATE UNIQUE INDEX IF NOT EXISTS devices_internal ON devices(internal_id) WHERE internal_id <> ''",
+  );
   return db;
 }
 export async function transaction(db, fn) {

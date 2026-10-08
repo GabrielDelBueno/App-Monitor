@@ -136,7 +136,7 @@ Pare a instância antes de copiar o banco e os arquivos auxiliares `-wal` / `-sh
 - Cada professor acessa apenas seus agendamentos, movimentações e notificações. TI gerencia equipamentos e empréstimos; apenas o administrador gerencia usuários e consulta auditoria.
 - As assinaturas são manuscritas associadas à conta e ao horário. **Não são certificadas ICP-Brasil.** O servidor valida o formato PNG; não consegue provar que o desenho corresponde à assinatura civil.
 - GOV.BR: o cliente OIDC está implementado e testado com provedor isolado, mas **a homologação oficial e a ativação continuam pendentes**. Exigem credenciamento e credenciais da instituição. Veja `docs/GOVBR.md`.
-- Recuperação de senha por e-mail, importação em lote e integração com sistemas escolares ainda não estão implementadas.
+- Recuperação de senha por e-mail e integração com sistemas escolares ainda não estão implementadas.
 - PostgreSQL é usado quando `DATABASE_URL` está definida, sem Prisma. SQLite continua disponível para execução local. O modelo original foi preservado em `docs/modelo-original.prisma` como referência. Esta implantação usa uma única instância e serializa as operações para proteger as validações do fluxo.
 
 ## Publicação com HTTPS e ativação GOV.BR
@@ -167,3 +167,15 @@ O leitor aceita QR Code e códigos de barras Code 128, Code 39, EAN-13, EAN-8, U
 A câmera traseira usa foco contínuo quando disponível, detecção nativa em navegadores compatíveis e leitor ZXing como alternativa. As tentativas do ZXing passam de 500 para 120 ms. A velocidade efetiva depende do aparelho, iluminação e qualidade da etiqueta. A atualização da interface estática inclui `/scanner.js`.
 
 A câmera mantém seu tamanho e exibe uma moldura com linha vermelha central. Alinhe o código desejado à linha e mantenha toda a etiqueta dentro da moldura: a leitura fica restrita à área marcada, para reduzir a captura de etiquetas ao redor.
+
+## Importação do inventário escolar
+
+Como administrador, abra **Inventário → Importar planilha** e escolha o `.xls` exportado pelo inventário da escola (tabela HTML). A prévia seleciona somente **Disponível** nas categorias Tablet, Notebook Sala de Aula, Notebook Básico Educacional e Smartphone. Clique em **Importar dispositivos** para aplicar. Não há importação automática durante publicação ou inicialização.
+
+Controle interno da UE, número de série, fabricante e modelo aparecem no inventário. A pesquisa aceita esses valores; a liberação manual e pela câmera aceitam QR, patrimônio, controle interno e série. Séries são texto: zeros à esquerda são preservados. Pedidos usam Tablet, Notebook, Chromebook e Celular; as duas categorias de notebook são agrupadas em Notebook.
+
+A importação usa transação, exige administrador, bloqueia identificadores em conflito e pode ser repetida sem duplicar. Cadastros existentes mantêm IDs, QR, patrimônio, estado, observações e metadados preenchidos; somente campos vazios são completados. Novos QR usam `APP-MONITOR:<controle interno>`. Avaliações técnicas são preservadas nas observações; **Bom** vira Bom estado, as demais avaliações dos disponíveis viram Conservado. Esse mapeamento não substitui conferência física.
+
+A planilha recebida em 08/10/2026 tem 201 selecionados: 124 tablets, 45 notebooks de sala de aula, 7 educacionais e 25 celulares; 2 não têm série. Nenhuma linha danificada/inservível é importada. A planilha e seus identificadores não são incorporados aos arquivos públicos nem ao Git.
+
+Publique primeiro o backend **app-monitor**, aguarde Live, e depois **app-monitor-interface**. As migrações adicionam campos e aceitam Celular sem apagar cadastros ou empréstimos. A versão anterior com a linha é `5397e1f`; uma reversão de código deve preservar o banco e avaliar o tratamento de Celular no frontend anterior. Não restaure um banco antigo para reverter aparência ou funcionalidade.

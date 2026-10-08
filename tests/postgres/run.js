@@ -95,6 +95,7 @@ try {
       "--test",
       "--test-concurrency=1",
       "tests/workflow.test.js",
+      "tests/inventory.test.js",
       "tests/postgres/persistence.js",
     ],
     {

@@ -52,6 +52,65 @@ test("PostgreSQL: rollback, transações concorrentes, persistência e migraçã
   }
 });
 
+test("PostgreSQL migra inventário antigo preservando referências e aceita celular", async () => {
+  const options = { localTest: process.env.TEST_DATABASE_TLS !== "true" };
+  let db = await openPostgres(process.env.TEST_DATABASE_URL, options);
+  const number = `MIG-${id()}`;
+  const deviceId = id();
+  try {
+    await db
+      .prepare(
+        "INSERT INTO devices(id,number,qr,type,status) VALUES(?,?,?,?,?)",
+      )
+      .run(deviceId, number, number, "TABLET", "CONSERVADO");
+    await db.transaction(async () => {
+      await db
+        .prepare("ALTER TABLE devices DROP CONSTRAINT devices_type_check")
+        .run();
+      await db
+        .prepare(
+          "ALTER TABLE devices ADD CONSTRAINT devices_type_check CHECK(type IN ('TABLET','NOTEBOOK','CHROMEBOOK'))",
+        )
+        .run();
+      await db.prepare("DROP INDEX devices_serial").run();
+      await db.prepare("DROP INDEX devices_internal").run();
+      for (const column of [
+        "internal_id",
+        "serial_number",
+        "manufacturer",
+        "model",
+      ])
+        await db.prepare(`ALTER TABLE devices DROP COLUMN ${column}`).run();
+    });
+    await db.close();
+    db = await openPostgres(process.env.TEST_DATABASE_URL, options);
+    const original = await db
+      .prepare("SELECT * FROM devices WHERE id=?")
+      .get(deviceId);
+    assert.equal(original.qr, number);
+    assert.equal(original.status, "CONSERVADO");
+    assert.equal(original.serial_number, "");
+    await db
+      .prepare(
+        "UPDATE devices SET type='CELULAR',serial_number='00000-PG-MIG' WHERE id=?",
+      )
+      .run(deviceId);
+    await db.close();
+    db = await openPostgres(process.env.TEST_DATABASE_URL, options);
+    assert.equal(
+      (await db.prepare("SELECT type FROM devices WHERE id=?").get(deviceId))
+        .type,
+      "CELULAR",
+    );
+    await assert.rejects(
+      db.prepare("UPDATE devices SET type='INVALIDO' WHERE id=?").run(deviceId),
+    );
+  } finally {
+    await db.prepare("DELETE FROM devices WHERE id=?").run(deviceId);
+    await db.close();
+  }
+});
+
 test("PostgreSQL rejeita certificado TLS não confiável", () => {
   const env = { ...process.env };
   delete env.NODE_EXTRA_CA_CERTS;

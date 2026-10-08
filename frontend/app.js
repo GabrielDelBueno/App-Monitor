@@ -13,6 +13,7 @@ const labels = {
   TABLET: "Tablet",
   NOTEBOOK: "Notebook",
   CHROMEBOOK: "Chromebook",
+  CELULAR: "Celular",
   BOM_ESTADO: "Bom estado",
   CONSERVADO: "Conservado",
   EM_MANUTENCAO: "Em manutenção",
@@ -438,7 +439,7 @@ function appointmentModal(existing) {
               .join("")}</select>`,
           )
         : ""
-    }${field("Data", `<input type="date" name="date" min="${localToday()}" max="${end.toISOString().slice(0, 10)}" value="${a.date}" required>`)}${field("Horário", `<input name="time" type="time" value="${h(a.time)}" required>`)}${field("Turma", `<input name="class_name" value="${h(a.class_name)}" maxlength="200" required>`)}${field("Tipo", `<select name="type">${options(["TABLET", "NOTEBOOK", "CHROMEBOOK"], a.type)}</select>`)}${field("Quantidade", `<input name="quantity" type="number" min="1" max="25" value="${a.quantity}" required>`)}</div><p class="muted">Ao editar, o pedido volta para aprovação e o pedido de extras é reiniciado.</p><button class="btn primary">Salvar agendamento</button></form>`,
+    }${field("Data", `<input type="date" name="date" min="${localToday()}" max="${end.toISOString().slice(0, 10)}" value="${a.date}" required>`)}${field("Horário", `<input name="time" type="time" value="${h(a.time)}" required>`)}${field("Turma", `<input name="class_name" value="${h(a.class_name)}" maxlength="200" required>`)}${field("Tipo", `<select name="type">${options(["TABLET", "NOTEBOOK", "CHROMEBOOK", "CELULAR"], a.type)}</select>`)}${field("Quantidade", `<input name="quantity" type="number" min="1" max="25" value="${a.quantity}" required>`)}</div><p class="muted">Ao editar, o pedido volta para aprovação e o pedido de extras é reiniciado.</p><button class="btn primary">Salvar agendamento</button></form>`,
     true,
   );
   $("#appointmentForm").onsubmit = action(async (e) => {
@@ -484,7 +485,7 @@ function release() {
               )
               .join("")}</select>`,
           )
-    }<div class="toolbar section">${field("QR / código de barras / patrimônio", '<input id="qrInput" placeholder="Leia ou digite o código">')}${button("Adicionar código", 'id="addCode"', "primary")}${button("📷 Abrir câmera", 'id="scan"')}${button(`Liberar ${state.selection.size}${needed ? ` / ${needed}` : ""} dispositivos`, 'id="releaseDevices"', "success")}</div></div><div class="card section"><h2>Equipamentos disponíveis</h2>${table(
+    }<div class="toolbar section">${field("QR / código de barras / patrimônio ou série", '<input id="qrInput" placeholder="Leia ou digite o código">')}${button("Adicionar código", 'id="addCode"', "primary")}${button("📷 Abrir câmera", 'id="scan"')}${button(`Liberar ${state.selection.size}${needed ? ` / ${needed}` : ""} dispositivos`, 'id="releaseDevices"', "success")}</div></div><div class="card section"><h2>Equipamentos disponíveis</h2>${table(
       ["Selecionar", "Patrimônio", "Tipo", "Estado"],
       eligible.map(
         (d) =>
@@ -502,10 +503,17 @@ function addCode(code) {
         state.loans.find((l) => l.id === state.extraLoan)?.appointment_id,
     );
   if (!a) return toast("Selecione um agendamento primeiro.");
-  const d = state.devices.find(
-    (d) => d.qr === code.trim() || d.number === code.trim(),
+  const matches = state.devices.filter((d) =>
+    [d.qr, d.number, d.internal_id, d.serial_number]
+      .filter(Boolean)
+      .includes(code.trim()),
   );
-  if (!d) return toast("Código não cadastrado no inventário.");
+  if (!matches.length) return toast("Código não cadastrado no inventário.");
+  if (matches.length > 1)
+    return toast(
+      "Código corresponde a mais de um aparelho. Confira os identificadores no inventário.",
+    );
+  const d = matches[0];
   if (
     d.in_use ||
     ["QUEBRADO", "EM_MANUTENCAO"].includes(d.status) ||
@@ -522,23 +530,34 @@ function inventory() {
     hero(
       "Inventário",
       "Cadastre equipamentos e acompanhe seu estado de conservação.",
-      button("＋ Cadastrar dispositivo", 'id="newDevice"', "primary"),
+      button("＋ Cadastrar dispositivo", 'id="newDevice"', "primary") +
+        (state.user.role === "ADMINISTRADOR"
+          ? button("Importar planilha", 'id="importInventory"')
+          : ""),
     ) +
-    `<div class="card">${field("Buscar por patrimônio ou QR", '<input id="inventorySearch" placeholder="Digite para filtrar">')}<div class="section" id="deviceList">${inventoryTable(state.devices)}</div></div>`
+    `<div class="card">${field("Buscar por controle interno, série, QR, modelo ou fabricante", '<input id="inventorySearch" placeholder="Digite para filtrar">')}<div class="section" id="deviceList">${inventoryTable(state.devices)}</div></div>`
   );
 }
 function inventoryTable(devices) {
   return table(
-    ["Patrimônio / QR", "Tipo", "Estado", "Disponibilidade", "Ações"],
+    [
+      "Controle interno UE / QR",
+      "Número de série",
+      "Fabricante / modelo",
+      "Tipo",
+      "Estado",
+      "Disponibilidade",
+      "Ações",
+    ],
     devices.map(
       (d) =>
-        `<tr><td><b>${h(d.number)}</b><br><small>${h(d.qr)}</small></td><td>${h(labels[d.type])}</td><td>${status(d.status)}</td><td>${d.in_use ? "Em uso" : "No inventário"}</td><td><div class="toolbar">${button("QR", `data-qr="${d.id}"`)}${button("Editar estado", `data-edit-device="${d.id}"`)}${button("Excluir", `data-delete-device="${d.id}"`, "danger")}</div></td></tr>`,
+        `<tr><td><b>${h(d.internal_id || d.number)}</b>${d.internal_id && d.internal_id !== d.number ? `<br><small>Patrimônio: ${h(d.number)}</small>` : ""}<br><small>${h(d.qr)}</small></td><td>${h(d.serial_number || "Não informado")}</td><td>${h(d.manufacturer || "—")}<br><small>${h(d.model || "—")}</small></td><td>${h(labels[d.type])}</td><td>${status(d.status)}</td><td>${d.in_use ? "Em uso" : "No inventário"}</td><td><div class="toolbar">${button("QR", `data-qr="${d.id}"`)}${button("Editar dispositivo", `data-edit-device="${d.id}"`)}${button("Excluir", `data-delete-device="${d.id}"`, "danger")}</div></td></tr>`,
     ),
   );
 }
 function deviceModal(d) {
   modal(
-    `<h3>${d ? "Editar estado" : "Cadastrar dispositivo"}</h3><form id="deviceForm"><div class="form-grid">${!d ? field("Patrimônio", '<input name="number" maxlength="200" required>') + field("Código QR ou código de barras", '<input name="qr" maxlength="200" required>') + field("Tipo", `<select name="type">${options(["TABLET", "NOTEBOOK", "CHROMEBOOK"], "TABLET")}</select>`) : `<p><b>${h(d.number)}</b></p>`}${field("Estado", `<select name="status">${options(["BOM_ESTADO", "CONSERVADO", "EM_MANUTENCAO", "QUEBRADO"], d?.status || "BOM_ESTADO")}</select>`)}</div>${field("Observações", `<textarea name="notes" maxlength="2000">${h(d?.notes || "")}</textarea>`)}<button class="btn primary section">Salvar dispositivo</button></form>`,
+    `<h3>${d ? "Editar dispositivo" : "Cadastrar dispositivo"}</h3><form id="deviceForm"><div class="form-grid">${!d ? field("Patrimônio", '<input name="number" maxlength="200" placeholder="ID de controle interno da UE" required>') + field("Código QR ou código de barras", '<input name="qr" maxlength="200" required>') + field("Tipo", `<select name="type">${options(["TABLET", "NOTEBOOK", "CHROMEBOOK", "CELULAR"], "TABLET")}</select>`) : `<p><b>${h(d.number)}</b></p>`}${field("ID de controle interno da UE", `<input name="internal_id" maxlength="200" value="${h(d?.internal_id || d?.number || "")}">`)}${field("Número de série", `<input name="serial_number" maxlength="200" value="${h(d?.serial_number || "")}">`)}${field("Fabricante", `<input name="manufacturer" maxlength="200" value="${h(d?.manufacturer || "")}">`)}${field("Modelo", `<input name="model" maxlength="200" value="${h(d?.model || "")}">`)}${field("Estado", `<select name="status">${options(["BOM_ESTADO", "CONSERVADO", "EM_MANUTENCAO", "QUEBRADO"], d?.status || "BOM_ESTADO")}</select>`)}</div>${field("Observações", `<textarea name="notes" maxlength="2000">${h(d?.notes || "")}</textarea>`)}<button class="btn primary section">Salvar dispositivo</button></form>`,
     true,
   );
   $("#deviceForm").onsubmit = action(async (e) => {
@@ -548,6 +567,46 @@ function deviceModal(d) {
     });
     await refresh();
     toast("Dispositivo salvo.");
+  });
+}
+function importInventoryModal() {
+  modal(
+    `<h3>Importar inventário da escola</h3><p>Selecione o .xls exportado. Entram somente tablets, notebooks de sala de aula, notebooks educacionais e celulares com status Disponível.</p>${field("Planilha de inventário", '<input id="inventoryFile" type="file" accept=".xls">')}<div id="importPreview" class="section" role="status"></div>`,
+    true,
+  );
+  let revision = 0;
+  $("#inventoryFile").onchange = action(async (e) => {
+    const currentRevision = ++revision;
+    const preview = $("#importPreview");
+    preview.textContent = "Conferindo planilha…";
+    const file = e.target.files[0];
+    if (!file) return;
+    if (file.size > 5_000_000)
+      throw Error("Planilha muito grande. Limite: 5 MB.");
+    const parsed = window.parseSchoolInventory(await file.text());
+    const summary = await api("/devices/import", {
+      method: "POST",
+      body: { records: parsed.records, dry_run: true },
+    });
+    if (!preview.isConnected || currentRevision !== revision) return;
+    preview.innerHTML = `<p><b>${parsed.records.length} aparelhos disponíveis selecionados.</b></p><ul>${Object.entries(
+      parsed.counts,
+    )
+      .map(([category, count]) => `<li>${h(category)}: ${count}</li>`)
+      .join(
+        "",
+      )}</ul><p>${summary.created} novos · ${summary.enriched} cadastros a completar · ${summary.unchanged} já cadastrados. ${parsed.excluded} linhas excluídas por categoria ou status.</p>${parsed.missingSerial.length ? `<p>Sem número de série: ${h(parsed.missingSerial.join(", "))}. Poderão ser localizados pelo controle interno ou QR.</p>` : ""}<p>Cadastros existentes mantêm QR, estado e informações já preenchidas.</p>${summary.conflicts.length ? `<p>Resolva os conflitos antes de importar:</p><ul>${summary.conflicts.map((message) => `<li>${h(message)}</li>`).join("")}</ul>` : button("Importar dispositivos", 'id="confirmImport"', "primary")}`;
+    if ($("#confirmImport"))
+      $("#confirmImport").onclick = action(async () => {
+        const result = await api("/devices/import", {
+          method: "POST",
+          body: { records: parsed.records, dry_run: false },
+        });
+        await refresh();
+        toast(
+          `Inventário importado: ${result.created} novos e ${result.enriched} completados.`,
+        );
+      });
   });
 }
 function loanCards(list) {
@@ -1028,13 +1087,17 @@ function bind() {
       await refresh();
       toast("Dispositivos liberados.");
     });
+  if ($("#importInventory"))
+    $("#importInventory").onclick = importInventoryModal;
   if ($("#newDevice")) $("#newDevice").onclick = () => deviceModal();
   if ($("#inventorySearch"))
     $("#inventorySearch").oninput = (e) => {
       const q = e.target.value.toLowerCase();
       $("#deviceList").innerHTML = inventoryTable(
         state.devices.filter((d) =>
-          `${d.number} ${d.qr}`.toLowerCase().includes(q),
+          `${d.number} ${d.internal_id || ""} ${d.serial_number || ""} ${d.qr} ${d.manufacturer || ""} ${d.model || ""}`
+            .toLowerCase()
+            .includes(q),
         ),
       );
       bindTables();

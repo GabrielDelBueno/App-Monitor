@@ -1,3 +1,10 @@
+import {
+  deviceTypes,
+  deviceFields,
+  importSchema,
+  planInventoryImport,
+  applyInventoryImport,
+} from "./inventory.js";
 import { openPostgres } from "./postgres.js";
 import express from "express";
 import { z } from "zod";
@@ -17,7 +24,7 @@ import {
 } from "./database.js";
 if (existsSync(".env")) process.loadEnvFile(".env");
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
-const types = ["TABLET", "NOTEBOOK", "CHROMEBOOK"],
+const types = deviceTypes,
   statuses = ["BOM_ESTADO", "CONSERVADO", "EM_MANUTENCAO", "QUEBRADO"];
 const text = z.string().trim().min(1).max(200),
   now = () => new Date().toISOString();
@@ -637,12 +644,38 @@ export function createApp({
       }),
     });
   });
+  app.post("/api/devices/import", async (req, res) => {
+    mustAdmin(req.user);
+    const input = importSchema.parse(req.body);
+    const summary = await transaction(db, async () => {
+      const plan = await planInventoryImport(db, input.records);
+      const result = {
+        created: plan.create.length,
+        enriched: plan.update.length,
+        unchanged: plan.unchanged,
+        conflicts: plan.conflicts,
+        total: input.records.length,
+      };
+      if (!input.dry_run) {
+        if (plan.conflicts.length)
+          fail(
+            409,
+            "Importação não realizada: há identificadores em conflito. Confira a prévia.",
+          );
+        await applyInventoryImport(db, plan);
+        await audit(req.user, "IMPORTAR_INVENTARIO", null, result);
+      }
+      return result;
+    });
+    res.json(summary);
+  });
   app.post("/api/devices", async (req, res) => {
     mustStaff(req.user);
     const d = z
       .object({
         number: text,
         qr: text,
+        ...deviceFields,
         type: z.enum(types),
         status: z.enum(statuses),
         notes: z.string().trim().max(2000).default(""),
@@ -651,13 +684,17 @@ export function createApp({
     const deviceId = id();
     await transaction(db, async () => {
       await run(
-        "INSERT INTO devices(id,number,qr,type,status,notes) VALUES(?,?,?,?,?,?)",
+        "INSERT INTO devices(id,number,qr,type,status,notes,internal_id,serial_number,manufacturer,model) VALUES(?,?,?,?,?,?,?,?,?,?)",
         deviceId,
         d.number,
         d.qr,
         d.type,
         d.status,
         d.notes,
+        d.internal_id || d.number,
+        d.serial_number,
+        d.manufacturer,
+        d.model,
       );
       await audit(req.user, "CRIAR_DISPOSITIVO", deviceId);
     });
@@ -669,6 +706,10 @@ export function createApp({
     mustStaff(req.user);
     const d = z
       .object({
+        internal_id: deviceFields.internal_id.removeDefault().optional(),
+        serial_number: deviceFields.serial_number.removeDefault().optional(),
+        manufacturer: deviceFields.manufacturer.removeDefault().optional(),
+        model: deviceFields.model.removeDefault().optional(),
         status: z.enum(statuses),
         notes: z.string().trim().max(2000).default(""),
       })
@@ -684,9 +725,13 @@ export function createApp({
       fail(409, "Altere o estado durante a conferência de retorno.");
     await transaction(db, async () => {
       await run(
-        "UPDATE devices SET status=?,notes=? WHERE id=?",
+        "UPDATE devices SET status=?,notes=?,internal_id=COALESCE(?,internal_id),serial_number=COALESCE(?,serial_number),manufacturer=COALESCE(?,manufacturer),model=COALESCE(?,model) WHERE id=?",
         d.status,
         d.notes,
+        d.internal_id ?? null,
+        d.serial_number ?? null,
+        d.manufacturer ?? null,
+        d.model ?? null,
         req.params.id,
       );
       await audit(req.user, "ALTERAR_DISPOSITIVO", req.params.id, d);

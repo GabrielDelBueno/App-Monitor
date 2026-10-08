@@ -56,3 +56,6 @@ services:
       - path: /scanner.js
         name: Cache-Control
         value: no-cache
+      - path: /inventory-import.js
+        name: Cache-Control
+        value: no-cache

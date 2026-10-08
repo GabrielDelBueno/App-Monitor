@@ -10,6 +10,7 @@ for (const name of [
   "index.html",
   "app.js",
   "scanner.js",
+  "inventory-import.js",
   "styles.css",
   "connection.js",
   "pwa.js",

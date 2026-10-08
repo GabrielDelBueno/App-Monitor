@@ -11,7 +11,7 @@
     "dev": "node --watch backend/src/server.js",
     "bootstrap": "node backend/src/bootstrap.js",
     "test": "node --test tests/*.test.js",
-    "check": "node --check backend/src/server.js && node --check frontend/app.js && node --check frontend/scanner.js && node --check frontend/connection.js && node --check frontend/pwa.js && node --check frontend/sw.js",
+    "check": "node --check backend/src/server.js && node --check frontend/app.js && node --check frontend/scanner.js && node --check frontend/inventory-import.js && node --check backend/src/inventory.js && node --check frontend/connection.js && node --check frontend/pwa.js && node --check frontend/sw.js",
     "demo": "node backend/src/demo.js",
     "test:e2e": "npm run build:static && playwright test",
     "format": "prettier --write backend/src scripts frontend tests playwright.config.js package.json compose.yaml",
