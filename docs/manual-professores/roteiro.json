@@ -1,0 +1,749 @@
+[
+  {
+    "title": "Manual do professor",
+    "purpose": "APP Monitor • Guia ilustrado para aprender e consultar durante o uso.",
+    "image": "10-painel-professor",
+    "steps": [
+      {
+        "label": "Organize a aula",
+        "explanation": "Aprenda a solicitar os aparelhos, acompanhar o pedido e registrar a utilização pela turma.",
+        "target": {}
+      },
+      {
+        "label": "Complete o empréstimo",
+        "explanation": "Veja como devolver os dispositivos e assinar o relatório depois da conferência.",
+        "target": {}
+      },
+      {
+        "label": "Siga as setas",
+        "explanation": "Os números nas imagens indicam os campos e botões explicados na mesma página.",
+        "target": {}
+      }
+    ],
+    "tip": "As telas usam pessoas e aparelhos fictícios. Endereço do app: app-monitor-interface.onrender.com",
+    "phase": "BEM-VINDO"
+  },
+  {
+    "title": "Como consultar este manual",
+    "purpose": "Você pode ler na sequência ou ir direto à tarefa de que precisa.",
+    "image": null,
+    "steps": [
+      {
+        "label": "Primeiro acesso · páginas 3 a 7",
+        "explanation": "Entrar, criar a conta de professor e trocar uma senha provisória.",
+        "target": {}
+      },
+      {
+        "label": "Preparar a aula · páginas 8 a 12",
+        "explanation": "Conhecer o painel, solicitar os aparelhos e acompanhar a aprovação.",
+        "target": {}
+      },
+      {
+        "label": "Usar e devolver · páginas 13 a 21",
+        "explanation": "Retirar, associar alunos, pedir extras, devolver, conferir e assinar.",
+        "target": {}
+      },
+      {
+        "label": "Consultar e resolver · páginas 22 a 28",
+        "explanation": "Histórico, PDF, notificações, senha, celular e respostas às dúvidas mais comuns.",
+        "target": {}
+      }
+    ],
+    "tip": "Nos exemplos, TAB-001 identifica um aparelho fictício. Use os dados da sua própria aula.",
+    "phase": "ROTEIRO"
+  },
+  {
+    "title": "Entrar com sua conta",
+    "purpose": "Abra https://app-monitor-interface.onrender.com no navegador.",
+    "image": "01-login",
+    "steps": [
+      {
+        "label": "Digite seu e-mail",
+        "explanation": "Use o e-mail informado no cadastro. Confira se não há espaços extras ou erro de digitação.",
+        "target": {
+          "name": "email"
+        }
+      },
+      {
+        "label": "Digite sua senha",
+        "explanation": "Use a senha da sua conta do App Monitor. Se a escola lhe entregou uma senha provisória, use-a neste primeiro acesso.",
+        "target": {
+          "name": "password"
+        }
+      },
+      {
+        "label": "Clique em Entrar",
+        "explanation": "Depois de entrar, confira se o seu nome aparece no cabeçalho e se o perfil está como Professor.",
+        "target": {
+          "text": "Entrar"
+        }
+      }
+    ],
+    "tip": "Esqueceu a senha? Solicite a redefinição ao administrador da escola. Não crie outra conta para resolver isso.",
+    "phase": "PASSO A PASSO"
+  },
+  {
+    "title": "Ainda não tem uma conta?",
+    "purpose": "O cadastro público está disponível somente para professores.",
+    "image": "01-login",
+    "steps": [
+      {
+        "label": "Abra o cadastro de professor",
+        "explanation": "Na tela de entrada, clique em Sou professor — criar minha conta. O aplicativo abrirá um formulário.",
+        "target": {
+          "id": "registerTeacher"
+        }
+      },
+      {
+        "label": "Já tem uma conta criada pela escola?",
+        "explanation": "Nesse caso, preencha o e-mail e a senha recebidos e use Entrar. Não é necessário se cadastrar novamente.",
+        "target": {
+          "text": "Entrar"
+        }
+      }
+    ],
+    "tip": "Se aparecer que o e-mail já está cadastrado, procure o administrador para recuperar o acesso.",
+    "phase": "PASSO A PASSO"
+  },
+  {
+    "title": "Cadastro: informe seus dados",
+    "purpose": "Use informações que permitam à escola identificar você.",
+    "image": "02-cadastro-professor",
+    "steps": [
+      {
+        "label": "Nome completo",
+        "explanation": "Digite seu nome inteiro, com nome e sobrenomes. Evite colocar somente o primeiro nome ou um apelido.",
+        "target": {
+          "name": "name"
+        }
+      },
+      {
+        "label": "E-mail",
+        "explanation": "Informe o endereço que você utilizará para entrar no app. Leia novamente antes de continuar: um erro aqui pode dificultar o acesso.",
+        "target": {
+          "name": "email"
+        }
+      }
+    ],
+    "tip": "Exemplo fictício: Professora Ana Silva. Cada professor deve utilizar sua própria conta.",
+    "phase": "PASSO A PASSO"
+  },
+  {
+    "title": "Cadastro: crie sua senha",
+    "purpose": "Conclua o formulário depois de preencher nome completo e e-mail.",
+    "image": "02-cadastro-professor",
+    "steps": [
+      {
+        "label": "Escolha uma senha",
+        "explanation": "Digite uma senha com pelo menos 12 caracteres. Use uma senha que consiga guardar com segurança.",
+        "target": {
+          "name": "password"
+        }
+      },
+      {
+        "label": "Repita a mesma senha",
+        "explanation": "Digite novamente, exatamente como no campo anterior. Os dois valores precisam coincidir.",
+        "target": {
+          "name": "confirmation"
+        }
+      },
+      {
+        "label": "Crie a conta",
+        "explanation": "Clique em Criar conta de professor. Quando o cadastro for concluído, o aplicativo abrirá a área do professor.",
+        "target": {
+          "text": "Criar conta de professor"
+        }
+      }
+    ],
+    "tip": "O perfil criado aqui é Professor. O administrador da escola poderá consultar e gerenciar esse cadastro.",
+    "phase": "PASSO A PASSO"
+  },
+  {
+    "title": "Se recebeu uma senha provisória",
+    "purpose": "Esta tela aparece quando a escola criou ou redefiniu sua conta.",
+    "image": "09-primeira-senha",
+    "steps": [
+      {
+        "label": "Informe a senha recebida",
+        "explanation": "Em Senha provisória, digite a senha que o administrador lhe entregou.",
+        "target": {
+          "name": "current"
+        }
+      },
+      {
+        "label": "Defina sua nova senha",
+        "explanation": "Crie uma senha de pelo menos 12 caracteres. No campo seguinte, confirme a mesma senha.",
+        "target": {
+          "name": "password"
+        }
+      },
+      {
+        "label": "Salve para continuar",
+        "explanation": "Clique em Salvar minha senha. A troca precisa ser concluída antes de usar as funções do aplicativo.",
+        "target": {
+          "text": "Salvar minha senha"
+        }
+      }
+    ],
+    "tip": "Depois da troca, use a nova senha nos próximos acessos. A senha provisória deixa de ser a sua senha de entrada.",
+    "phase": "PASSO A PASSO"
+  },
+  {
+    "title": "Conheça a tela inicial",
+    "purpose": "A Visão geral reúne seus pedidos e suas movimentações.",
+    "image": "10-painel-professor",
+    "steps": [
+      {
+        "label": "Agendamentos",
+        "explanation": "Use este menu para acompanhar os pedidos de aparelhos feitos para suas aulas.",
+        "target": {
+          "page": "appointments"
+        }
+      },
+      {
+        "label": "Meus dispositivos",
+        "explanation": "Abra este menu para ver os aparelhos que a equipe já liberou para você.",
+        "target": {
+          "page": "loans"
+        }
+      },
+      {
+        "label": "Notificações",
+        "explanation": "O sino reúne avisos do aplicativo. Consulte-o para acompanhar mudanças e pendências.",
+        "target": {
+          "id": "notifications"
+        }
+      }
+    ],
+    "tip": "Sua conta de professor acompanha os seus próprios registros. Inventário e gestão de usuários são funções da equipe.",
+    "phase": "PASSO A PASSO"
+  },
+  {
+    "title": "Comece um novo pedido",
+    "purpose": "Tenha em mãos a data, o horário, a turma e a quantidade necessária.",
+    "image": "10-painel-professor",
+    "steps": [
+      {
+        "label": "Clique em Novo agendamento",
+        "explanation": "Na Visão geral, use o botão + Novo agendamento. Ele abre o formulário do pedido.",
+        "target": {
+          "text": "＋ Novo agendamento"
+        }
+      },
+      {
+        "label": "Também acompanhe pelo menu",
+        "explanation": "O menu Agendamentos permite consultar os pedidos já registrados e iniciar um novo quando necessário.",
+        "target": {
+          "page": "appointments"
+        }
+      }
+    ],
+    "tip": "Criar o pedido ainda não significa que os aparelhos foram entregues: ele seguirá para aprovação da equipe.",
+    "phase": "PASSO A PASSO"
+  },
+  {
+    "title": "Preencha data, horário e turma",
+    "purpose": "No formulário aberto, identifique a aula que usará os aparelhos.",
+    "image": "11-novo-agendamento",
+    "steps": [
+      {
+        "label": "Data da aula",
+        "explanation": "Escolha a data correta. O aplicativo permite agendar entre hoje e os próximos 14 dias.",
+        "target": {
+          "name": "date"
+        }
+      },
+      {
+        "label": "Horário",
+        "explanation": "Informe o horário previsto para a utilização dos equipamentos.",
+        "target": {
+          "name": "time"
+        }
+      },
+      {
+        "label": "Turma",
+        "explanation": "Digite a identificação da turma. Exemplo: 8º Ano B. Use o padrão de identificação adotado pela escola.",
+        "target": {
+          "name": "class_name"
+        }
+      }
+    ],
+    "tip": "Confira esses três campos antes de salvar, principalmente quando fizer pedidos para mais de uma turma.",
+    "phase": "PASSO A PASSO"
+  },
+  {
+    "title": "Escolha os aparelhos e salve",
+    "purpose": "O pedido usa o tipo do equipamento, não o modelo ou fabricante.",
+    "image": "11-novo-agendamento",
+    "steps": [
+      {
+        "label": "Tipo de equipamento",
+        "explanation": "Escolha Tablet, Notebook, Chromebook ou Celular, conforme a necessidade da aula e a orientação da escola.",
+        "target": {
+          "name": "type"
+        }
+      },
+      {
+        "label": "Quantidade",
+        "explanation": "Informe a quantidade necessária: de 1 a 25 aparelhos por pedido. Confira o número antes de enviar.",
+        "target": {
+          "name": "quantity"
+        }
+      },
+      {
+        "label": "Salvar agendamento",
+        "explanation": "Clique neste botão. Após salvar, abra Agendamentos e confira se o pedido aparece na lista.",
+        "target": {
+          "text": "Salvar agendamento"
+        }
+      }
+    ],
+    "tip": "Exemplo: para uma atividade em duplas, calcule a quantidade necessária para a turma antes de enviar o pedido.",
+    "phase": "PASSO A PASSO"
+  },
+  {
+    "title": "Acompanhe e ajuste o pedido",
+    "purpose": "Abra Agendamentos para consultar a situação da sua solicitação.",
+    "image": "12-pedido-pendente",
+    "steps": [
+      {
+        "label": "Entenda o status",
+        "explanation": "Pendente significa que a equipe ainda precisa analisar o pedido. Aprovado significa que ele foi aprovado; combine a retirada.",
+        "target": {
+          "text": "Pendente"
+        }
+      },
+      {
+        "label": "Editar",
+        "explanation": "Antes da liberação, use Editar se precisar corrigir os dados. Ao salvar uma alteração, o pedido volta para aprovação.",
+        "target": {
+          "text": "Editar"
+        }
+      },
+      {
+        "label": "Cancelar",
+        "explanation": "Se não for mais usar os aparelhos, cancele o pedido enquanto essa ação estiver disponível. Confira se escolheu a solicitação certa.",
+        "target": {
+          "text": "Cancelar"
+        }
+      }
+    ],
+    "tip": "A liberação dos dispositivos ocorre no dia agendado e é registrada pela equipe responsável.",
+    "phase": "PASSO A PASSO"
+  },
+  {
+    "title": "Depois de retirar os aparelhos",
+    "purpose": "A equipe precisa registrar a liberação para que o empréstimo apareça.",
+    "image": "26-meus-dispositivos",
+    "steps": [
+      {
+        "label": "Abra Meus dispositivos",
+        "explanation": "Acesse esse menu depois da entrega dos aparelhos.",
+        "target": {
+          "page": "loans"
+        }
+      },
+      {
+        "label": "Localize a movimentação",
+        "explanation": "Confira turma, quantidade e situação. Em uso indica que o empréstimo está em andamento.",
+        "target": {
+          "text": "Em uso"
+        }
+      },
+      {
+        "label": "Abra os detalhes",
+        "explanation": "Clique em Abrir movimentação para ver a lista de aparelhos e registrar quem está utilizando cada um.",
+        "target": {
+          "text": "Abrir movimentação"
+        }
+      }
+    ],
+    "tip": "Se a movimentação não aparecer, confirme com a equipe se a liberação foi concluída na sua conta e turma.",
+    "phase": "PASSO A PASSO"
+  },
+  {
+    "title": "Associe os aparelhos aos alunos",
+    "purpose": "Cada linha mostra o identificador de um aparelho entregue.",
+    "image": "16-uso-e-devolucao",
+    "steps": [
+      {
+        "label": "Preencha os alunos",
+        "explanation": "Ao lado de cada dispositivo, informe o aluno que o utilizou, conforme a orientação da escola. Repita nas demais linhas.",
+        "target": {
+          "label": "Aluno do dispositivo TAB-001"
+        }
+      },
+      {
+        "label": "Salve as associações",
+        "explanation": "Clique em Salvar associações para registrar os nomes durante a aula. Depois, você poderá continuar usando a movimentação.",
+        "target": {
+          "id": "saveStudents"
+        }
+      }
+    ],
+    "tip": "Confira a etiqueta física para não trocar os alunos entre os aparelhos. Todas as associações devem estar preenchidas ao devolver.",
+    "phase": "PASSO A PASSO"
+  },
+  {
+    "title": "Precisa de aparelhos extras?",
+    "purpose": "A solicitação de extras acontece dentro de um empréstimo em uso.",
+    "image": "16-uso-e-devolucao",
+    "steps": [
+      {
+        "label": "Abra a solicitação",
+        "explanation": "Na movimentação, clique em Solicitar extras. Será aberto um formulário de quantidade.",
+        "target": {
+          "id": "requestExtras"
+        }
+      },
+      {
+        "label": "Mantenha o registro dos alunos",
+        "explanation": "Se preencher ou corrigir os alunos durante a aula, use Salvar associações para guardar as alterações.",
+        "target": {
+          "id": "saveStudents"
+        }
+      }
+    ],
+    "tip": "É permitido um único pedido de até 5 aparelhos extras por aula. A equipe ainda precisa efetuar a liberação dos extras.",
+    "phase": "PASSO A PASSO"
+  },
+  {
+    "title": "Envie o pedido de extras",
+    "purpose": "Escolha a quantidade adicional com atenção.",
+    "image": "21-extras",
+    "steps": [
+      {
+        "label": "Quantidade extra",
+        "explanation": "Informe de 1 a 5 aparelhos adicionais. Essa quantidade é acrescentada ao pedido original, quando liberada pela equipe.",
+        "target": {
+          "name": "quantity"
+        }
+      },
+      {
+        "label": "Enviar pedido",
+        "explanation": "Clique em Enviar pedido e avise a equipe responsável pela entrega. Confira os novos aparelhos na movimentação após a liberação.",
+        "target": {
+          "text": "Enviar pedido"
+        }
+      }
+    ],
+    "tip": "Não registre aparelhos recebidos por fora do fluxo. Peça à equipe para registrar a entrega no App Monitor.",
+    "phase": "PASSO A PASSO"
+  },
+  {
+    "title": "Registre e envie a devolução",
+    "purpose": "Ao concluir a aula, confira todos os aparelhos e devolva-os à equipe.",
+    "image": "16-uso-e-devolucao",
+    "steps": [
+      {
+        "label": "Escreva o relato",
+        "explanation": "Descreva como terminou a utilização e informe qualquer ocorrência. Exemplo: aula concluída e aparelhos devolvidos sem ocorrências.",
+        "target": {
+          "id": "returnReport"
+        }
+      },
+      {
+        "label": "Envie para conferência",
+        "explanation": "Confira os alunos e clique em Enviar devolução. O aplicativo salva as associações e encaminha a movimentação para conferência.",
+        "target": {
+          "id": "submitReturn"
+        }
+      }
+    ],
+    "tip": "Se houve dano, falha ou falta de um aparelho, registre o ocorrido e avise a equipe. O relato deve ter pelo menos 5 caracteres.",
+    "phase": "PASSO A PASSO"
+  },
+  {
+    "title": "Aguarde a conferência da equipe",
+    "purpose": "Enviar a devolução é uma etapa; o retorno físico ainda será conferido.",
+    "image": "27-devolucao-pendente",
+    "steps": [
+      {
+        "label": "Consulte Meus dispositivos",
+        "explanation": "Acompanhe a movimentação enquanto a equipe verifica os aparelhos recebidos.",
+        "target": {
+          "page": "loans"
+        }
+      },
+      {
+        "label": "Observe o status de retorno",
+        "explanation": "Conferir retorno indica que os aparelhos aguardam a conferência registrada pela equipe.",
+        "target": {
+          "text": "Conferir retorno"
+        }
+      }
+    ],
+    "tip": "Depois da conferência, será necessário revisar e assinar o relatório. Fique atento às notificações.",
+    "phase": "PASSO A PASSO"
+  },
+  {
+    "title": "Abra o relatório para assinar",
+    "purpose": "Acesse o relatório depois que a equipe concluir a conferência.",
+    "image": "28-lista-relatorios",
+    "steps": [
+      {
+        "label": "Relatórios e assinaturas",
+        "explanation": "Abra este menu para encontrar os relatórios e as assinaturas pendentes.",
+        "target": {
+          "page": "reports"
+        }
+      },
+      {
+        "label": "Ver relatório",
+        "explanation": "Localize a movimentação da sua turma e clique em Ver relatório.",
+        "target": {
+          "text": "Ver relatório"
+        }
+      }
+    ],
+    "tip": "Uma assinatura sua pendente pode impedir novos pedidos. Resolva a pendência após conferir as informações do relatório.",
+    "phase": "PASSO A PASSO"
+  },
+  {
+    "title": "Leia antes de assinar",
+    "purpose": "Confira se o relatório corresponde ao que aconteceu na aula.",
+    "image": "18-assinatura",
+    "steps": [
+      {
+        "label": "Identificação da movimentação",
+        "explanation": "Confira professor, turma, situação e datas. Leia também a lista dos aparelhos e o relato registrado.",
+        "target": {
+          "cls": "report-meta"
+        }
+      },
+      {
+        "label": "Assinaturas",
+        "explanation": "Observe quais assinaturas já foram registradas e quais estão pendentes. Você assina pela sua própria conta de professor.",
+        "target": {
+          "cls": "signature-grid"
+        }
+      }
+    ],
+    "tip": "Se encontrar uma divergência, procure a equipe responsável antes de confirmar sua assinatura.",
+    "phase": "PASSO A PASSO"
+  },
+  {
+    "title": "Desenhe e confirme a assinatura",
+    "purpose": "Role a janela do relatório até a área da sua assinatura.",
+    "image": "22-assinar-campo",
+    "steps": [
+      {
+        "label": "Desenhe neste espaço",
+        "explanation": "No celular, use o dedo. No computador, clique e arraste com o mouse para desenhar sua assinatura.",
+        "target": {
+          "id": "signature"
+        }
+      },
+      {
+        "label": "Limpar, se precisar refazer",
+        "explanation": "Se o desenho ficar incorreto, clique em Limpar e faça a assinatura novamente.",
+        "target": {
+          "id": "clearSignature"
+        }
+      },
+      {
+        "label": "Confirme o registro",
+        "explanation": "Quando terminar, clique em Confirmar minha assinatura. Aguarde a confirmação antes de sair.",
+        "target": {
+          "id": "signReport"
+        }
+      }
+    ],
+    "tip": "As assinaturas são registros manuscritos feitos por contas autenticadas; não são assinaturas certificadas ICP-Brasil.",
+    "phase": "PASSO A PASSO"
+  },
+  {
+    "title": "Consulte seus registros concluídos",
+    "purpose": "Depois das assinaturas necessárias, a movimentação fica disponível no histórico.",
+    "image": "25-historico",
+    "steps": [
+      {
+        "label": "Abra Histórico",
+        "explanation": "Esse menu reúne as movimentações concluídas que você pode consultar.",
+        "target": {
+          "page": "history"
+        }
+      },
+      {
+        "label": "Pesquise a movimentação",
+        "explanation": "Use o campo de pesquisa para filtrar pela turma ou pelo professor, conforme os registros disponíveis para sua conta.",
+        "target": {
+          "id": "historySearch"
+        }
+      },
+      {
+        "label": "Visualizar / PDF",
+        "explanation": "Clique no botão da linha desejada para abrir novamente o relatório.",
+        "target": {
+          "text": "Visualizar / PDF"
+        }
+      }
+    ],
+    "tip": "Se o empréstimo ainda não estiver no histórico, verifique se falta conferência ou alguma assinatura.",
+    "phase": "PASSO A PASSO"
+  },
+  {
+    "title": "Guarde uma cópia do relatório",
+    "purpose": "Abra o relatório pelo Histórico antes de imprimir ou salvar.",
+    "image": "19-relatorio",
+    "steps": [
+      {
+        "label": "Imprimir / salvar PDF",
+        "explanation": "Clique neste botão para abrir a janela de impressão do navegador.",
+        "target": {
+          "id": "printReport"
+        }
+      },
+      {
+        "label": "Confira as assinaturas",
+        "explanation": "Antes de guardar a cópia, verifique se o relatório é o desejado e se contém os registros esperados.",
+        "target": {
+          "cls": "signature-grid"
+        }
+      }
+    ],
+    "tip": "Na janela do navegador, escolha Salvar como PDF (ou opção equivalente), indique a pasta e confirme Salvar.",
+    "phase": "PASSO A PASSO"
+  },
+  {
+    "title": "Consulte as notificações",
+    "purpose": "Clique no sino, no cabeçalho do aplicativo, para abrir os avisos.",
+    "image": "23-notificacoes",
+    "steps": [
+      {
+        "label": "Leia e abra o aviso",
+        "explanation": "Confira a mensagem e clique em Abrir para ir à área relacionada à notificação.",
+        "target": {
+          "text": "Abrir"
+        }
+      },
+      {
+        "label": "Concluir a notificação",
+        "explanation": "Use Concluir quando tiver tratado aquele aviso. Esse botão conclui o aviso, não substitui as ações do empréstimo.",
+        "target": {
+          "text": "Concluir"
+        }
+      }
+    ],
+    "tip": "Marcar um aviso como concluído não assina relatórios, não devolve aparelhos e não cancela agendamentos.",
+    "phase": "PASSO A PASSO"
+  },
+  {
+    "title": "Troque sua senha quando precisar",
+    "purpose": "Depois de entrar, clique em Conta no cabeçalho.",
+    "image": "24-conta",
+    "steps": [
+      {
+        "label": "Senha atual",
+        "explanation": "Digite a senha que você está usando para entrar no App Monitor.",
+        "target": {
+          "name": "current"
+        }
+      },
+      {
+        "label": "Nova senha",
+        "explanation": "Escolha outra senha com pelo menos 12 caracteres. Confira a digitação antes de salvar.",
+        "target": {
+          "name": "password"
+        }
+      },
+      {
+        "label": "Salvar senha",
+        "explanation": "Clique em Salvar senha. Passe a usar a nova senha nos próximos acessos.",
+        "target": {
+          "text": "Salvar senha"
+        }
+      }
+    ],
+    "tip": "Se não souber a senha atual e não conseguir entrar, peça ao administrador uma nova senha provisória.",
+    "phase": "PASSO A PASSO"
+  },
+  {
+    "title": "Use também pelo celular",
+    "purpose": "Abra o mesmo endereço no navegador e entre com sua própria conta.",
+    "image": "20-celular",
+    "steps": [
+      {
+        "label": "Acompanhe os pedidos",
+        "explanation": "Use Agendamentos para consultar as solicitações mesmo estando fora do computador.",
+        "target": {
+          "page": "appointments"
+        }
+      },
+      {
+        "label": "Acesse os empréstimos",
+        "explanation": "Em Meus dispositivos, você pode preencher os alunos e registrar a devolução.",
+        "target": {
+          "page": "loans"
+        }
+      },
+      {
+        "label": "Saia ao terminar",
+        "explanation": "Em um aparelho compartilhado, clique em Sair para encerrar sua sessão.",
+        "target": {
+          "id": "logout"
+        }
+      }
+    ],
+    "tip": "Se desejar, use a opção do navegador para adicionar um atalho à tela inicial. As funções continuam disponíveis pelo site.",
+    "phase": "PASSO A PASSO"
+  },
+  {
+    "title": "Dúvidas e soluções rápidas",
+    "purpose": "Antes de fazer outro cadastro ou repetir uma ação, confira estas orientações.",
+    "image": null,
+    "steps": [
+      {
+        "label": "Não consigo entrar",
+        "explanation": "Revise o e-mail e a senha. Se esqueceu a senha, peça a redefinição ao administrador. Se a conta estiver desativada, procure a escola.",
+        "target": {}
+      },
+      {
+        "label": "O site demora a abrir",
+        "explanation": "A primeira conexão pode demorar enquanto o servidor gratuito é ativado. Aguarde a conexão e siga a orientação de tentar novamente, se aparecer.",
+        "target": {}
+      },
+      {
+        "label": "Não consigo devolver ou pedir novamente",
+        "explanation": "Preencha todos os alunos e o relato para devolver. Para novos pedidos, verifique se existe relatório pendente da sua assinatura.",
+        "target": {}
+      },
+      {
+        "label": "Há erro no pedido ou problema com um aparelho",
+        "explanation": "Antes da liberação, use Editar quando disponível. Durante o uso, comunique a equipe e registre a ocorrência no relato.",
+        "target": {}
+      }
+    ],
+    "tip": "Ao pedir ajuda, informe a turma, a data e a mensagem exibida. Nunca envie sua senha.",
+    "phase": "APOIO"
+  },
+  {
+    "title": "Checklist do professor",
+    "purpose": "Use esta página como lembrete antes, durante e depois da aula.",
+    "image": null,
+    "steps": [
+      {
+        "label": "Antes da aula",
+        "explanation": "Entrar na própria conta → registrar o pedido → acompanhar a aprovação → combinar a retirada.",
+        "target": {}
+      },
+      {
+        "label": "Durante a aula",
+        "explanation": "Conferir os aparelhos recebidos → preencher e salvar os alunos → comunicar problemas e solicitar extras, se necessário.",
+        "target": {}
+      },
+      {
+        "label": "Ao terminar",
+        "explanation": "Conferir e entregar os aparelhos → escrever o relato → enviar a devolução → aguardar a conferência.",
+        "target": {}
+      },
+      {
+        "label": "Para concluir",
+        "explanation": "Ler o relatório → assinar → consultar o Histórico e salvar o PDF quando precisar.",
+        "target": {}
+      }
+    ],
+    "tip": "Acesse: https://app-monitor-interface.onrender.com",
+    "phase": "CONSULTA RÁPIDA"
+  }
+]
