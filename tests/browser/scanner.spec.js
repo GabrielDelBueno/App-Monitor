@@ -160,3 +160,49 @@ test("detecção nativa continua após código recusado e encerra após aceitaç
     .poll(() => page.evaluate(() => window.scannerTrack.readyState))
     .toBe("ended");
 });
+
+test("ignora QR fora da moldura e lê quando alinhado ao centro", async ({
+  page,
+}) => {
+  const source = await QRCode.toDataURL("ALVO-CENTRAL", {
+    width: 120,
+    margin: 4,
+  });
+  await page.goto("/");
+  await page.waitForFunction(
+    () => typeof window.startMonitorScanner === "function",
+  );
+  await page.evaluate(async (source) => {
+    window.BarcodeDetector = undefined;
+    const canvas = document.createElement("canvas");
+    canvas.width = 1280;
+    canvas.height = 720;
+    const context = canvas.getContext("2d");
+    const image = new Image();
+    image.src = source;
+    await image.decode();
+    window.positionTarget = (centered) => {
+      context.fillStyle = "white";
+      context.fillRect(0, 0, 1280, 720);
+      context.drawImage(image, 580, centered ? 300 : 0);
+    };
+    window.positionTarget(false);
+    const stream = canvas.captureStream(24);
+    navigator.mediaDevices.getUserMedia = async () => stream;
+    const video = document.createElement("video");
+    video.style.cssText = "width:640px;height:360px;object-fit:cover";
+    document.body.append(video);
+    window.targetResults = [];
+    await window.startMonitorScanner(video, (code) => {
+      window.targetResults.push(code);
+      return true;
+    });
+  }, source);
+  // Let several scan attempts run with the code outside the actual crop.
+  await page.waitForTimeout(700);
+  expect(await page.evaluate(() => window.targetResults)).toEqual([]);
+  await page.evaluate(() => window.positionTarget(true));
+  await expect
+    .poll(() => page.evaluate(() => window.targetResults))
+    .toEqual(["ALVO-CENTRAL"]);
+});

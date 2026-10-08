@@ -28,7 +28,7 @@
         if (stopped) return;
         stopped = true;
         clearTimeout(timer);
-        fallback?.stop();
+
         stream.getTracks().forEach((track) => track.stop());
         if (video.srcObject === stream) video.srcObject = null;
       },
@@ -54,18 +54,41 @@
       } catch {
         /* Optional autofocus must not prevent scanning. */
       }
-      async function useFallback() {
+      // Match the central guide to the visible object-fit: cover preview.
+      const canvas = document.createElement("canvas");
+      const context = canvas.getContext("2d", { willReadFrequently: true });
+      function captureTarget() {
+        const bounds = video.getBoundingClientRect();
+        const width = video.videoWidth,
+          height = video.videoHeight;
+        const scale = Math.max(bounds.width / width, bounds.height / height);
+        const cropWidth = Math.round((bounds.width * 0.8) / scale);
+        const cropHeight = Math.round((bounds.height * 0.6) / scale);
+        if (!cropWidth || !cropHeight) return null;
+        if (canvas.width !== cropWidth) canvas.width = cropWidth;
+        if (canvas.height !== cropHeight) canvas.height = cropHeight;
+        context.drawImage(
+          video,
+          (width - cropWidth) / 2,
+          (height - cropHeight) / 2,
+          cropWidth,
+          cropHeight,
+          0,
+          0,
+          cropWidth,
+          cropHeight,
+        );
+        return canvas;
+      }
+      function useFallback() {
         if (stopped || !video.isConnected) {
           controls.stop();
           return;
         }
         const library = window.ZXingBrowser;
         if (!library) throw Error("Leitor indisponível.");
-        const reader = new library.BrowserMultiFormatReader(undefined, {
-          delayBetweenScanAttempts: 120,
-          delayBetweenScanSuccess: 120,
-        });
-        reader.possibleFormats = [
+        fallback = new library.BrowserMultiFormatReader();
+        fallback.possibleFormats = [
           "QR_CODE",
           "CODE_128",
           "CODE_39",
@@ -76,10 +99,6 @@
           "ITF",
           "CODABAR",
         ].map((name) => library.BarcodeFormat[name]);
-        fallback = await reader.decodeFromVideoElement(video, (result) => {
-          if (result) deliver(result.getText());
-        });
-        if (stopped) fallback.stop();
       }
       let detector;
       try {
@@ -91,29 +110,45 @@
       } catch {
         /* Use the compatible reader if native detection is unavailable. */
       }
-      if (detector) {
-        const read = async () => {
-          if (stopped || !video.isConnected) {
-            controls.stop();
-            return;
-          }
-          try {
-            if (video.readyState >= 2) {
-              const results = await detector.detect(video);
-              if (results[0]?.rawValue) deliver(results[0].rawValue);
+      if (!detector) useFallback();
+      if (!video.isConnected) {
+        controls.stop();
+        return controls;
+      }
+      const read = async () => {
+        if (stopped || !video.isConnected) {
+          controls.stop();
+          return;
+        }
+        if (video.readyState >= 2) {
+          const target = captureTarget();
+          if (target) {
+            if (detector) {
+              try {
+                const results = await detector.detect(target);
+                if (results[0]?.rawValue) deliver(results[0].rawValue);
+              } catch {
+                detector = null;
+                try {
+                  useFallback();
+                } catch {
+                  controls.stop();
+                }
+              }
+            } else {
+              let result;
+              try {
+                result = fallback.decodeFromCanvas(target);
+              } catch {
+                // No complete readable code in the target yet; try the next frame.
+              }
+              if (result) deliver(result.getText());
             }
-          } catch {
-            try {
-              await useFallback();
-            } catch {
-              controls.stop();
-            }
-            return;
           }
-          if (!stopped) timer = setTimeout(read, 100);
-        };
-        timer = setTimeout(read, 0);
-      } else await useFallback();
+        }
+        if (!stopped) timer = setTimeout(read, detector ? 100 : 120);
+      };
+      timer = setTimeout(read, 0);
       return controls;
     } catch (error) {
       controls.stop();

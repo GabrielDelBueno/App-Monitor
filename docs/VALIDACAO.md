@@ -31,3 +31,7 @@ As instruções de instalação e inicialização do ambiente Codex foram salvas
 ## Atualização: leitor QR e códigos de barras
 
 `npm run check`, 22 testes de integração e os 8 testes Chromium da suíte completa passaram. Depois, os 4 testes específicos do leitor passaram, incluindo um teste adicional de detecção nativa simulada que mantém a câmera após código recusado. Imagens reais de QR e Code 39 foram decodificadas pelo ZXing usando vídeo de canvas; o encerramento das trilhas de câmera, inclusive após fechamento durante permissão pendente, foi verificado. Os demais formatos configurados não foram exercitados individualmente. O intervalo de tentativas do ZXing foi reduzido de 500 para 120 ms; velocidade e foco em câmera física ainda precisam ser medidos no celular. Nenhuma migração ou exclusão de dados. Publicação no Render depende da atualização do Static Site.
+
+## Atualização: mira central da câmera
+
+A janela continua com 330 px de altura. A moldura central ocupa 80% da largura e 60% da altura, com linha vermelha horizontal. Os dois leitores recebem apenas o recorte correspondente à moldura, compensando `object-fit: cover`, sem ampliar a imagem. A suíte completa de 9 testes Chromium e a verificação de sintaxe passaram; o teste adicional de exclusão de QR fora da moldura foi executado separadamente. A versão anterior é `ef6911a`, permitindo desfazer somente esta mudança sem restaurar ou excluir dados do banco. O comportamento com etiquetas físicas próximas ainda deve ser conferido no celular.

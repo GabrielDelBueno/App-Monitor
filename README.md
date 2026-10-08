@@ -165,3 +165,5 @@ Em redes que exigem um proxy e uma autoridade certificadora adicional, o Dockerf
 O leitor aceita QR Code e códigos de barras Code 128, Code 39, EAN-13, EAN-8, UPC-A, UPC-E, ITF e Codabar. No cadastro do dispositivo, informe o conteúdo da etiqueta em **Código QR ou código de barras**; a leitura também pode corresponder ao patrimônio. Códigos desconhecidos não encerram a câmera.
 
 A câmera traseira usa foco contínuo quando disponível, detecção nativa em navegadores compatíveis e leitor ZXing como alternativa. As tentativas do ZXing passam de 500 para 120 ms. A velocidade efetiva depende do aparelho, iluminação e qualidade da etiqueta. A atualização da interface estática inclui `/scanner.js`.
+
+A câmera mantém seu tamanho e exibe uma moldura com linha vermelha central. Alinhe o código desejado à linha e mantenha toda a etiqueta dentro da moldura: a leitura fica restrita à área marcada, para reduzir a captura de etiquetas ao redor.

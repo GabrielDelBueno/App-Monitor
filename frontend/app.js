@@ -782,7 +782,7 @@ function auditPage() {
 async function scan() {
   const appGeneration = generation;
   modal(
-    `<h3>Ler QR Code ou código de barras</h3><p>Aponte a câmera traseira para o código, com boa iluminação e o código inteiro visível.</p><div class="camera-box"><video id="cameraVideo" autoplay playsinline></video></div><p id="cameraStatus" role="status">Abrindo câmera…</p>${field("Leitor USB / entrada manual", '<input id="manualCode" placeholder="QR, código de barras ou patrimônio">')}${button("Adicionar", 'id="manualAdd"', "primary")}`,
+    `<h3>Ler QR Code ou código de barras</h3><p>Alinhe o código desejado com a linha vermelha e mantenha o código inteiro dentro da moldura.</p><div class="camera-box"><video id="cameraVideo" autoplay playsinline></video><div class="scan-frame" aria-hidden="true"><span class="scan-line"></span></div></div><p id="cameraStatus" role="status">Abrindo câmera…</p>${field("Leitor USB / entrada manual", '<input id="manualCode" placeholder="QR, código de barras ou patrimônio">')}${button("Adicionar", 'id="manualAdd"', "primary")}`,
     true,
   );
   $("#manualAdd").onclick = () => addCode($("#manualCode").value);
