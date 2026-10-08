@@ -43,6 +43,7 @@ export function createApp({
     resolve(root, "data/app-monitor.sqlite"),
   secure = process.env.COOKIE_SECURE === "true",
   govbr = govbrFromEnvironment(),
+  frontendOrigin = process.env.FRONTEND_ORIGIN,
   publicBaseUrl = process.env.PUBLIC_BASE_URL ||
     process.env.RENDER_EXTERNAL_URL,
   setupToken = process.env.SETUP_TOKEN,
@@ -53,6 +54,22 @@ export function createApp({
   if (setupToken && setupToken.length < 32)
     throw Error("SETUP_TOKEN deve conter pelo menos 32 caracteres aleatórios.");
   const publicOrigin = publicBaseUrl ? new URL(publicBaseUrl).origin : null;
+  let staticOrigin = null;
+  if (frontendOrigin) {
+    const url = new URL(frontendOrigin);
+    if (
+      (url.protocol !== "https:" && process.env.NODE_ENV === "production") ||
+      url.pathname !== "/" ||
+      url.search ||
+      url.hash ||
+      url.username ||
+      url.password
+    )
+      throw Error(
+        "FRONTEND_ORIGIN deve ser somente a origem HTTPS do site estático.",
+      );
+    staticOrigin = url.origin;
+  }
   const db = database || openDatabase(databasePath),
     app = express(),
     attempts = new Map();
@@ -262,11 +279,11 @@ export function createApp({
       req.headers.origin
     ) {
       try {
-        if (
-          publicOrigin
-            ? new URL(req.headers.origin).origin !== publicOrigin
-            : new URL(req.headers.origin).host !== req.headers.host
-        )
+        const origin = new URL(req.headers.origin);
+        const originalAllowed = publicOrigin
+          ? origin.origin === publicOrigin
+          : origin.host === req.headers.host;
+        if (!originalAllowed && origin.origin !== staticOrigin)
           return res.status(403).json({
             erro: "Origem não autorizada.",
           });

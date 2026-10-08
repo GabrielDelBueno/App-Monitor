@@ -73,6 +73,13 @@ async function api(path, { method = "GET", body } = {}) {
     headers: body ? { "Content-Type": "application/json" } : {},
     body: body ? JSON.stringify(body) : undefined,
   });
+  if (
+    r.status !== 204 &&
+    !r.headers.get("content-type")?.includes("application/json")
+  )
+    throw Error(
+      "O servidor está iniciando ou indisponível. Aguarde um pouco e tente novamente.",
+    );
   const data = r.status === 204 ? null : await r.json();
   if (!r.ok) {
     if (r.status === 401 && path !== "/login") {
@@ -1117,7 +1124,7 @@ window.addEventListener("keydown", (e) => {
 window.addEventListener("pagehide", stopScanner);
 (async () => {
   try {
-    authConfig = await api("/auth/config");
+    authConfig = await window.monitorConnection.ready();
     state.user = await api("/me");
     await refresh();
   } catch (error) {

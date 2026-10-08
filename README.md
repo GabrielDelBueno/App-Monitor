@@ -35,6 +35,12 @@ A configuração pronta usa **Render Free + Neon Free**, com endereço HTTPS do 
 
 A publicação ainda não foi executada: faltam suas contas gratuitas e a configuração privada do Neon no Render. O site pode demorar para abrir após inatividade, conforme os limites dos planos Free.
 
+## Tela própria durante a inicialização
+
+Para abrir primeiro o logo AM e **Conectando ao servidor…**, sem navegar à página de inicialização do Render, use uma interface estática separada. [Siga o guia](deploy/INTERFACE-ESTATICA.md). O backend e o banco atuais permanecem os mesmos; o novo endereço da interface precisa ser autorizado em `FRONTEND_ORIGIN` no backend e usado nos celulares. A espera do plano gratuito continua existindo.
+
+`npm run build:static` gera somente arquivos públicos em `public-static/`. O Blueprint opcional `deploy/render-static.yaml` cria apenas o Static Site e encaminha as chamadas da API para o backend existente. Não substitua o Blueprint atual por esse arquivo nem exponha credenciais do Neon na interface.
+
 ## Instalar no celular pelo navegador
 
 Abra o endereço HTTPS do seu App Monitor. O botão **Instalar App Monitor** mostra as instruções e, quando disponível, abre a instalação do navegador.

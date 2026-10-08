@@ -787,3 +787,32 @@ textarea:focus-visible {
     display: none !important;
   }
 }
+
+.connection-screen {
+  text-align: center;
+}
+.connection-logo {
+  border-radius: 22px;
+}
+.connection-spinner {
+  width: 28px;
+  height: 28px;
+  margin: 24px auto;
+  border: 3px solid #d8e5fa;
+  border-top-color: #3182f6;
+  border-radius: 50%;
+  animation: monitor-spin 1s linear infinite;
+}
+#retry-connection[hidden] {
+  display: none;
+}
+@keyframes monitor-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .connection-spinner {
+    animation: none;
+  }
+}

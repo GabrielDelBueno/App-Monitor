@@ -23,3 +23,7 @@ As instruções de instalação e inicialização do ambiente Codex foram salvas
 ## Atualização: autocadastro de professores
 
 22 testes de integração e 4 testes Chromium passaram. O novo fluxo exige nome completo, permite somente Professor no cadastro público, rejeita campos de perfil privilegiado e e-mails duplicados, e impede professores de editar usuários. A edição administrativa de nome/e-mail, a revogação de sessões e a desativação foram verificadas. O navegador percorreu cadastro público e edição pelo administrador. Nenhuma migração ou exclusão de registros é necessária.
+
+## Atualização: interface estática e tela de conexão
+
+`npm run build:static` e `npm run check` passaram. Passaram os 22 testes de integração e os 5 testes Chromium. O novo teste usa frontend separado, simula HTML do cold start na API e verifica tela AM, recuperação, login com cookie, sessão após recarregar, logout e bloqueio de origem externa não autorizada. Nenhum registro do banco foi migrado ou excluído. O novo Static Site e o encaminhamento real do Render ainda precisam ser publicados e verificados no provedor.

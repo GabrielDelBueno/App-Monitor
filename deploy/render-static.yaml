@@ -1,0 +1,55 @@
+# Import as a NEW Blueprint. Keep the existing backend and Neon database intact.
+services:
+  - type: web
+    name: app-monitor-interface
+    runtime: static
+    branch: app-monitor-funcional
+    buildCommand: npm ci --omit=dev && npm run build:static
+    staticPublishPath: ./public-static
+    envVars:
+      - key: NODE_VERSION
+        value: "24"
+    routes:
+      - type: rewrite
+        source: /api/*
+        destination: https://app-monitor-iuz8.onrender.com/api/*
+      - type: rewrite
+        source: /auth/*
+        destination: https://app-monitor-iuz8.onrender.com/auth/*
+    headers:
+      - path: /*
+        name: X-Content-Type-Options
+        value: nosniff
+      - path: /*
+        name: Referrer-Policy
+        value: same-origin
+      - path: /*
+        name: X-Frame-Options
+        value: DENY
+      - path: /*
+        name: Content-Security-Policy
+        value: "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; media-src 'self' blob:; object-src 'none'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
+      - path: /api/*
+        name: Cache-Control
+        value: no-store
+      - path: /sw.js
+        name: Cache-Control
+        value: no-cache
+      - path: /index.html
+        name: Cache-Control
+        value: no-cache
+      - path: /manifest.webmanifest
+        name: Cache-Control
+        value: no-cache
+      - path: /
+        name: Cache-Control
+        value: no-cache
+      - path: /app.js
+        name: Cache-Control
+        value: no-cache
+      - path: /connection.js
+        name: Cache-Control
+        value: no-cache
+      - path: /auth/*
+        name: Cache-Control
+        value: no-store
