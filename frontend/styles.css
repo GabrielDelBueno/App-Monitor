@@ -829,3 +829,27 @@ textarea:focus-visible {
   transform: translateY(-50%);
   box-shadow: 0 0 4px rgba(255, 48, 48, 0.6);
 }
+
+.device-choices {
+  border: 1px solid var(--border, #64748b);
+  border-radius: 12px;
+  margin: 16px 0;
+  padding: 16px;
+}
+.device-choices legend {
+  font-weight: 700;
+  padding: 0 6px;
+}
+.device-choices .toolbar label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px;
+}
+.device-choices input[type="checkbox"] {
+  width: 20px;
+  height: 20px;
+}
+.device-choices [hidden] {
+  display: none;
+}

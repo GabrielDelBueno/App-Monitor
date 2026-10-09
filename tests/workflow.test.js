@@ -479,6 +479,125 @@ test("notificações, auditoria e dados persistem ao reabrir o banco", async () 
   );
   await reopened.close();
 });
+test("pedido misto preserva quantidades por tipo, edição, persistência e extras", async () => {
+  const items = [
+    { type: "TABLET", quantity: 2 },
+    { type: "NOTEBOOK", quantity: 1 },
+  ];
+  const body = {
+    date: today(),
+    time: "10:00",
+    class_name: "Turma mista",
+    items,
+  };
+  assert.equal(
+    (
+      await prof("/api/appointments", "POST", {
+        ...body,
+        items: [...items, items[0]],
+      })
+    ).status,
+    400,
+  );
+  assert.equal(
+    (
+      await prof("/api/appointments", "POST", {
+        ...body,
+        items: [
+          { type: "TABLET", quantity: 25 },
+          { type: "NOTEBOOK", quantity: 1 },
+        ],
+      })
+    ).status,
+    400,
+  );
+  const created = await prof("/api/appointments", "POST", body);
+  assert.equal(created.status, 201);
+  const a = created.data;
+  assert.equal(a.quantity, 3);
+  assert.equal(a.items.length, 2);
+  await ti(`/api/appointments/${a.id}/approve`, "POST");
+  const edited = await prof(`/api/appointments/${a.id}`, "PATCH", body);
+  assert.equal(edited.data.status, "PENDENTE");
+  assert.deepEqual(edited.data.items, a.items);
+  const reopened = process.env.TEST_DATABASE_URL
+    ? await openPostgres(process.env.TEST_DATABASE_URL, {
+        localTest: process.env.TEST_DATABASE_TLS !== "true",
+      })
+    : openDatabase(dbPath);
+  assert.equal(
+    (
+      await reopened
+        .prepare(
+          "SELECT COUNT(*) AS n FROM appointment_items WHERE appointment_id=?",
+        )
+        .get(a.id)
+    ).n,
+    2,
+  );
+  await reopened.close();
+  await ti(`/api/appointments/${a.id}/approve`, "POST");
+  const available = [];
+  for (const [n, type] of [
+    "TABLET",
+    "TABLET",
+    "TABLET",
+    "NOTEBOOK",
+    "CELULAR",
+  ].entries()) {
+    const r = await admin("/api/devices", "POST", {
+      number: `MIX-${n}`,
+      qr: `QR-MIX-${n}`,
+      type,
+      status: "BOM_ESTADO",
+    });
+    assert.equal(r.status, 201);
+    available.push(r.data.id);
+  }
+  const wrong = await ti("/api/loans", "POST", {
+    appointment_id: a.id,
+    device_ids: available.slice(0, 3),
+  });
+  assert.equal(wrong.status, 400);
+  assert.equal(
+    (await prof("/api/appointments")).data.find((x) => x.id === a.id).status,
+    "APROVADO",
+  );
+  const released = await ti("/api/loans", "POST", {
+    appointment_id: a.id,
+    device_ids: [available[0], available[1], available[3]],
+  });
+  assert.equal(released.status, 201);
+  const l = released.data;
+  assert.equal(
+    (await prof(`/api/loans/${l.id}/extras`, "POST", { quantity: 1 })).status,
+    400,
+  );
+  assert.equal(
+    (
+      await prof(`/api/loans/${l.id}/extras`, "POST", {
+        items: [{ type: "CELULAR", quantity: 1 }],
+      })
+    ).status,
+    200,
+  );
+  assert.equal(
+    (
+      await ti(`/api/loans/${l.id}/extras/release`, "POST", {
+        device_ids: [available[2]],
+      })
+    ).status,
+    400,
+  );
+  assert.equal(
+    (
+      await ti(`/api/loans/${l.id}/extras/release`, "POST", {
+        device_ids: [available[4]],
+      })
+    ).status,
+    200,
+  );
+});
 test("senha, desativação e logout encerram acesso", async () => {
   assert.equal(
     (

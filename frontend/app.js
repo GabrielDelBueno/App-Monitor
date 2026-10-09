@@ -411,10 +411,65 @@ function appointments() {
       ],
       state.appointments.map(
         (a) =>
-          `<tr><td>${date(a.date)} • ${h(a.time)}</td><td>${h(a.teacher_name)}</td><td>${h(a.class_name)}</td><td>${a.quantity} ${h(labels[a.type])}${a.extras ? ` + ${a.extras} extras` : ""}</td><td>${status(a.status)}</td><td><div class="toolbar">${["PENDENTE", "APROVADO"].includes(a.status) ? button("Editar", `data-edit-appointment="${a.id}"`) + button("Cancelar", `data-cancel="${a.id}"`, "danger") : ""}${staff() && a.status === "PENDENTE" ? button("Aprovar", `data-approve="${a.id}"`, "success") : ""}${staff() && a.status === "APROVADO" ? button("Liberar", `data-release="${a.id}"`, "primary") : ""}</div></td></tr>`,
+          `<tr><td>${date(a.date)} • ${h(a.time)}</td><td>${h(a.teacher_name)}</td><td>${h(a.class_name)}</td><td>${h(requestSummary(a))}${a.extras ? ` + ${a.extras} extras` : ""}</td><td>${status(a.status)}</td><td><div class="toolbar">${["PENDENTE", "APROVADO"].includes(a.status) ? button("Editar", `data-edit-appointment="${a.id}"`) + button("Cancelar", `data-cancel="${a.id}"`, "danger") : ""}${staff() && a.status === "PENDENTE" ? button("Aprovar", `data-approve="${a.id}"`, "success") : ""}${staff() && a.status === "APROVADO" ? button("Liberar", `data-release="${a.id}"`, "primary") : ""}</div></td></tr>`,
       ),
     )}</div>`
   );
+}
+const requestItems = (a, extras = false) =>
+  a?.[extras ? "extra_items" : "items"] ||
+  (a ? [{ type: a.type, quantity: extras ? a.extras : a.quantity }] : []);
+const requestSummary = (a, extras = false) =>
+  requestItems(a, extras)
+    .map((i) => `${i.quantity} ${labels[i.type]}`)
+    .join(" + ");
+function deviceChoices(items, limit) {
+  return `<fieldset class="device-choices"><legend>1. Escolha os tipos de dispositivo</legend><div class="toolbar">${["TABLET", "NOTEBOOK", "CHROMEBOOK", "CELULAR"].map((type) => `<label><input type="checkbox" data-request-type="${type}" ${items.some((i) => i.type === type) ? "checked" : ""}> ${labels[type]}</label>`).join("")}</div></fieldset><fieldset class="device-choices"><legend>2. Informe a quantidade de cada tipo</legend>${[
+    "TABLET",
+    "NOTEBOOK",
+    "CHROMEBOOK",
+    "CELULAR",
+  ]
+    .map((type) => {
+      const item = items.find((i) => i.type === type);
+      return `<div data-quantity-row="${type}" ${item ? "" : "hidden"}>${field(`Quantidade — ${labels[type]}`, `<input data-request-quantity="${type}" type="number" min="1" max="${limit}" value="${item?.quantity || 1}" ${item ? "" : "disabled"} required>`)}</div>`;
+    })
+    .join(
+      "",
+    )}<p class="muted" id="requestTotal" aria-live="polite"></p></fieldset>`;
+}
+function readChoices(form) {
+  return [...form.querySelectorAll("[data-request-type]:checked")].map(
+    (el) => ({
+      type: el.dataset.requestType,
+      quantity: Number(
+        form.querySelector(
+          `[data-request-quantity="${el.dataset.requestType}"]`,
+        ).value,
+      ),
+    }),
+  );
+}
+function bindChoices(form, limit) {
+  const update = () => {
+    form.querySelectorAll("[data-request-type]").forEach((el) => {
+      form.querySelector(
+        `[data-quantity-row="${el.dataset.requestType}"]`,
+      ).hidden = !el.checked;
+      form.querySelector(
+        `[data-request-quantity="${el.dataset.requestType}"]`,
+      ).disabled = !el.checked;
+    });
+    const items = readChoices(form),
+      total = items.reduce((n, i) => n + i.quantity, 0);
+    form.querySelector("#requestTotal").textContent =
+      `Total: ${total} / ${limit} aparelhos. ${!items.length ? "Selecione ao menos um tipo." : total > limit ? "Reduza as quantidades para continuar." : ""}`;
+    form.querySelector('button[type="submit"], button.primary').disabled =
+      !items.length || !Number.isInteger(total) || total < 1 || total > limit;
+  };
+  form.addEventListener("input", update);
+  form.addEventListener("change", update);
+  update();
 }
 function appointmentModal(existing) {
   if (state.user.blocked)
@@ -424,7 +479,7 @@ function appointmentModal(existing) {
     time: "08:50",
     class_name: "",
     type: "TABLET",
-    quantity: 25,
+    quantity: 1,
   };
   const end = new Date(`${localToday()}T12:00:00Z`);
   end.setUTCDate(end.getUTCDate() + 14);
@@ -439,12 +494,13 @@ function appointmentModal(existing) {
               .join("")}</select>`,
           )
         : ""
-    }${field("Data", `<input type="date" name="date" min="${localToday()}" max="${end.toISOString().slice(0, 10)}" value="${a.date}" required>`)}${field("Horário", `<input name="time" type="time" value="${h(a.time)}" required>`)}${field("Turma", `<input name="class_name" value="${h(a.class_name)}" maxlength="200" required>`)}${field("Tipo", `<select name="type">${options(["TABLET", "NOTEBOOK", "CHROMEBOOK", "CELULAR"], a.type)}</select>`)}${field("Quantidade", `<input name="quantity" type="number" min="1" max="25" value="${a.quantity}" required>`)}</div><p class="muted">Ao editar, o pedido volta para aprovação e o pedido de extras é reiniciado.</p><button class="btn primary">Salvar agendamento</button></form>`,
+    }${field("Data", `<input type="date" name="date" min="${localToday()}" max="${end.toISOString().slice(0, 10)}" value="${a.date}" required>`)}${field("Horário", `<input name="time" type="time" value="${h(a.time)}" required>`)}${field("Turma", `<input name="class_name" value="${h(a.class_name)}" maxlength="200" required>`)}</div>${deviceChoices(existing ? requestItems(a) : [], 25)}<p class="muted">Ao editar, o pedido volta para aprovação e o pedido de extras é reiniciado.</p><button class="btn primary">Salvar agendamento</button></form>`,
     true,
   );
+  bindChoices($("#appointmentForm"), 25);
   $("#appointmentForm").onsubmit = action(async (e) => {
     const body = formValue(e.currentTarget);
-    body.quantity = Number(body.quantity);
+    body.items = readChoices(e.currentTarget);
     await api(existing ? `/appointments/${a.id}` : "/appointments", {
       method: existing ? "PATCH" : "POST",
       body,
@@ -464,7 +520,8 @@ function release() {
     (d) =>
       !d.in_use &&
       !["QUEBRADO", "EM_MANUTENCAO"].includes(d.status) &&
-      (!selectedAppointment || d.type === selectedAppointment.type),
+      (!selectedAppointment ||
+        requestItems(selectedAppointment, !!l).some((i) => i.type === d.type)),
   );
   const needed = l ? selectedAppointment?.extras : a?.quantity;
   return (
@@ -481,10 +538,19 @@ function release() {
               .filter((a) => a.status === "APROVADO")
               .map(
                 (a) =>
-                  `<option value="${a.id}" ${a.id === state.appointment ? "selected" : ""}>${date(a.date)} ${h(a.time)} • ${h(a.teacher_name)} • ${h(a.class_name)} • ${a.quantity} ${labels[a.type]}</option>`,
+                  `<option value="${a.id}" ${a.id === state.appointment ? "selected" : ""}>${date(a.date)} ${h(a.time)} • ${h(a.teacher_name)} • ${h(a.class_name)} • ${h(requestSummary(a))}</option>`,
               )
               .join("")}</select>`,
           )
+    }${
+      selectedAppointment
+        ? `<div class="notice">${requestItems(selectedAppointment, !!l)
+            .map(
+              (i) =>
+                `${h(labels[i.type])}: ${state.devices.filter((d) => state.selection.has(d.id) && d.type === i.type).length} / ${i.quantity}`,
+            )
+            .join(" • ")}</div>`
+        : ""
     }<div class="toolbar section">${field("QR / código de barras / patrimônio ou série", '<input id="qrInput" placeholder="Leia ou digite o código">')}${button("Adicionar código", 'id="addCode"', "primary")}${button("📷 Abrir câmera", 'id="scan"')}${button(`Liberar ${state.selection.size}${needed ? ` / ${needed}` : ""} dispositivos`, 'id="releaseDevices"', "success")}</div></div><div class="card section"><h2>Equipamentos disponíveis</h2>${table(
       ["Selecionar", "Patrimônio", "Tipo", "Estado"],
       eligible.map(
@@ -517,9 +583,19 @@ function addCode(code) {
   if (
     d.in_use ||
     ["QUEBRADO", "EM_MANUTENCAO"].includes(d.status) ||
-    d.type !== a.type
+    !requestItems(a, !!state.extraLoan).some((i) => i.type === d.type)
   )
     return toast("Dispositivo indisponível ou de tipo incompatível.");
+  const requested = requestItems(a, !!state.extraLoan).find(
+    (i) => i.type === d.type,
+  );
+  if (
+    !state.selection.has(d.id) &&
+    state.devices.filter(
+      (device) => state.selection.has(device.id) && device.type === d.type,
+    ).length >= requested.quantity
+  )
+    return toast("A quantidade solicitada deste tipo já foi selecionada.");
   state.selection.add(d.id);
   render();
   toast(`${d.number} selecionado.`);
@@ -647,7 +723,7 @@ function loanModal(l) {
         (i) =>
           `<tr><td>${h(i.number)}</td><td>${teacher && l.status === "EM_USO" ? `<input class="student-input" data-item="${i.id}" value="${h(i.student)}" maxlength="200" aria-label="Aluno do dispositivo ${h(i.number)}">` : h(i.student || "Não informado")}</td><td>${status(i.departure_status)}</td>${staff() && l.status === "AGUARDANDO_DEVOLUCAO" ? `<td><select data-return="${i.id}" aria-label="Estado de ${h(i.number)}">${options(["BOM_ESTADO", "CONSERVADO", "EM_MANUTENCAO", "QUEBRADO"], i.departure_status)}</select></td><td><input data-comment="${i.id}" maxlength="2000" placeholder="Obrigatório se alterar o estado" aria-label="Comentário sobre ${h(i.number)}"></td>` : ""}</tr>`,
       ),
-    )}${teacher && l.status === "EM_USO" ? `${field("Relato da utilização e devolução", '<textarea id="returnReport" rows="4" minlength="5" maxlength="4000" placeholder="Relate a utilização e qualquer ocorrência."></textarea>')}<div class="toolbar section">${button("Salvar associações", 'id="saveStudents" type="button"', "primary")}${button("Solicitar extras", 'id="requestExtras" type="button"')}${button("Enviar devolução", 'id="submitReturn" type="button"', "success")}</div>` : ""}${staff() && l.status === "AGUARDANDO_DEVOLUCAO" ? `<p class="muted">Confira fisicamente todos os itens antes de concluir.</p>${button("Concluir conferência", 'id="checkReturn" type="button"', "success")}` : ""}</form>${staff() && l.status === "EM_USO" && a?.extras && l.items.length === a.quantity ? `<div class="notice">Pedido extra: ${a.extras} dispositivos. ${button("Liberar extras", `id="releaseExtras"`)}</div>` : ""}`,
+    )}${teacher && l.status === "EM_USO" ? `${field("Relato da utilização e devolução", '<textarea id="returnReport" rows="4" minlength="5" maxlength="4000" placeholder="Relate a utilização e qualquer ocorrência."></textarea>')}<div class="toolbar section">${button("Salvar associações", 'id="saveStudents" type="button"', "primary")}${button("Solicitar extras", 'id="requestExtras" type="button"')}${button("Enviar devolução", 'id="submitReturn" type="button"', "success")}</div>` : ""}${staff() && l.status === "AGUARDANDO_DEVOLUCAO" ? `<p class="muted">Confira fisicamente todos os itens antes de concluir.</p>${button("Concluir conferência", 'id="checkReturn" type="button"', "success")}` : ""}</form>${staff() && l.status === "EM_USO" && a?.extras && l.items.length === a.quantity ? `<div class="notice">Pedido extra: ${h(requestSummary(a, true))}. ${button("Liberar extras", `id="releaseExtras"`)}</div>` : ""}`,
     true,
   );
   const students = () =>
@@ -681,12 +757,13 @@ function loanModal(l) {
   if ($("#requestExtras"))
     $("#requestExtras").onclick = () => {
       modal(
-        `<h3>Solicitar dispositivos extras</h3><p>Um único pedido de até 5 aparelhos por aula.</p><form id="extraForm">${field("Quantidade", '<input name="quantity" type="number" min="1" max="5" value="1" required>')}<button class="btn primary section">Enviar pedido</button></form>`,
+        `<h3>Solicitar dispositivos extras</h3><p>Um único pedido de até 5 aparelhos por aula.</p><form id="extraForm">${deviceChoices([], 5)}<button class="btn primary section">Enviar pedido</button></form>`,
       );
+      bindChoices($("#extraForm"), 5);
       $("#extraForm").onsubmit = action(async (e) => {
         await api(`/loans/${l.id}/extras`, {
           method: "POST",
-          body: { quantity: Number(formValue(e.currentTarget).quantity) },
+          body: { items: readChoices(e.currentTarget) },
         });
         await refresh();
         toast("Pedido enviado ao TI.");
@@ -1053,11 +1130,16 @@ function bind() {
   $$("[data-device]").forEach(
     (input) =>
       (input.onchange = () => {
-        input.checked
-          ? state.selection.add(input.dataset.device)
-          : state.selection.delete(input.dataset.device);
-        $("#releaseDevices").textContent =
-          `Liberar ${state.selection.size} dispositivos`;
+        if (input.checked) {
+          const device = state.devices.find(
+            (d) => d.id === input.dataset.device,
+          );
+          addCode(device.qr);
+          input.checked = state.selection.has(input.dataset.device);
+        } else {
+          state.selection.delete(input.dataset.device);
+          render();
+        }
       }),
   );
   if ($("#addCode")) $("#addCode").onclick = () => addCode($("#qrInput").value);

@@ -71,6 +71,8 @@ test("ciclo escolar completo pelas telas e layout móvel", async ({ page }) => {
     await page
       .getByLabel("Código QR ou código de barras", { exact: true })
       .fill(`QR-${n}`);
+    if (n === 2)
+      await page.getByLabel("Tipo", { exact: true }).selectOption("NOTEBOOK");
     await page.getByRole("button", { name: "Salvar dispositivo" }).click();
     await expect(page.locator("#modal")).toHaveCount(0);
   }
@@ -90,7 +92,15 @@ test("ciclo escolar completo pelas telas e layout móvel", async ({ page }) => {
   await login(page, "prof@browser.local");
   await page.getByRole("button", { name: "＋ Novo agendamento" }).click();
   await page.getByLabel("Turma", { exact: true }).fill("8º Ano B");
-  await page.getByLabel("Quantidade", { exact: true }).fill("2");
+  await page.getByRole("checkbox", { name: "Tablet", exact: true }).check();
+  await page.getByLabel("Quantidade — Tablet", { exact: true }).fill("25");
+  await page.getByRole("checkbox", { name: "Notebook", exact: true }).check();
+  await expect(
+    page.getByRole("button", { name: "Salvar agendamento" }),
+  ).toBeDisabled();
+  await page.getByLabel("Quantidade — Tablet", { exact: true }).fill("1");
+  await page.getByLabel("Quantidade — Notebook", { exact: true }).fill("1");
+  await expect(page.locator("#requestTotal")).toContainText("Total: 2 / 25");
   await page.getByRole("button", { name: "Salvar agendamento" }).click();
   await expect(page.locator("#modal")).toHaveCount(0);
   await logout(page);

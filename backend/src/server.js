@@ -135,9 +135,76 @@ export function createApp({
     if (await blocked(u))
       fail(409, "Assine o relatório pendente antes de continuar.");
   };
-  const appointment = async (appointmentId) =>
-    (await get("SELECT * FROM appointments WHERE id=?", appointmentId)) ||
-    fail(404, "Agendamento não encontrado.");
+  const withItems = async (a) => ({
+    ...a,
+    items: await requestedItems(a, "INITIAL"),
+    extra_items: await requestedItems(a, "EXTRA"),
+  });
+  const requestedItems = async (a, kind) => {
+    const rows = await all(
+      "SELECT type,quantity FROM appointment_items WHERE appointment_id=? AND kind=? ORDER BY type",
+      a.id,
+      kind,
+    );
+    return rows.length
+      ? rows
+      : kind === "INITIAL"
+        ? [{ type: a.type, quantity: a.quantity }]
+        : a.extras
+          ? [{ type: a.type, quantity: a.extras }]
+          : [];
+  };
+  const saveItems = async (aId, kind, items) => {
+    await run(
+      "DELETE FROM appointment_items WHERE appointment_id=? AND kind=?",
+      aId,
+      kind,
+    );
+    for (const item of items)
+      await run(
+        "INSERT INTO appointment_items(appointment_id,kind,type,quantity) VALUES(?,?,?,?)",
+        aId,
+        kind,
+        item.type,
+        item.quantity,
+      );
+  };
+  const parseItems = (body, limit, fallbackType) => {
+    const items = z
+      .array(
+        z.object({
+          type: z.enum(types),
+          quantity: z.number().int().min(1).max(limit),
+        }),
+      )
+      .min(1)
+      .max(types.length)
+      .parse(
+        body.items ?? [
+          { type: body.type ?? fallbackType, quantity: body.quantity },
+        ],
+      );
+    if (new Set(items.map((i) => i.type)).size !== items.length)
+      fail(400, "Selecione cada tipo apenas uma vez.");
+    const quantity = items.reduce((n, i) => n + i.quantity, 0);
+    if (quantity > limit)
+      fail(400, `O pedido pode ter até ${limit} aparelhos no total.`);
+    return { items, quantity, type: items[0].type };
+  };
+  const validateComposition = (devices, items) => {
+    if (
+      devices.length !== items.reduce((n, i) => n + i.quantity, 0) ||
+      items.some(
+        (i) => devices.filter((d) => d.type === i.type).length !== i.quantity,
+      )
+    )
+      fail(400, "Selecione a quantidade exata de cada tipo solicitado.");
+  };
+  const appointment = async (appointmentId) => {
+    const a = await get("SELECT * FROM appointments WHERE id=?", appointmentId);
+    if (!a) fail(404, "Agendamento não encontrado.");
+    return withItems(a);
+  };
   const loan = async (loanId) =>
     (await get("SELECT * FROM loans WHERE id=?", loanId)) ||
     fail(404, "Movimentação não encontrada.");
@@ -759,9 +826,13 @@ export function createApp({
   });
   app.get("/api/appointments", async (req, res) =>
     res.json(
-      await all(
-        `SELECT a.*,u.name AS teacher_name FROM appointments a JOIN users u ON u.id=a.teacher_id ${staff(req.user) ? "" : "WHERE a.teacher_id=?"} ORDER BY date DESC,time DESC`,
-        ...(staff(req.user) ? [] : [req.user.id]),
+      await Promise.all(
+        (
+          await all(
+            `SELECT a.*,u.name AS teacher_name FROM appointments a JOIN users u ON u.id=a.teacher_id ${staff(req.user) ? "" : "WHERE a.teacher_id=?"} ORDER BY date DESC,time DESC`,
+            ...(staff(req.user) ? [] : [req.user.id]),
+          )
+        ).map(withItems),
       ),
     ),
   );
@@ -769,8 +840,6 @@ export function createApp({
     date: z.iso.date(),
     time: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/),
     class_name: text,
-    type: z.enum(types),
-    quantity: z.number().int().min(1).max(25),
   });
   const validateDate = (d) => {
     const start = today(),
@@ -781,7 +850,10 @@ export function createApp({
   };
   app.post("/api/appointments", async (req, res) => {
     await mustUnblocked(req.user);
-    const d = appointmentSchema.parse(req.body);
+    const d = {
+      ...appointmentSchema.parse(req.body),
+      ...parseItems(req.body, 25),
+    };
     validateDate(d.date);
     const teacherId = staff(req.user)
       ? z.string().parse(req.body.teacher_id)
@@ -804,6 +876,7 @@ export function createApp({
         d.quantity,
         now(),
       );
+      await saveItems(aId, "INITIAL", d.items);
       await notifyStaff(
         "Novo agendamento",
         `${req.user.name} criou um agendamento para ${d.class_name}.`,
@@ -821,7 +894,10 @@ export function createApp({
       fail(403, "Agendamento de outro professor.");
     if (!["PENDENTE", "APROVADO"].includes(a.status))
       fail(409, "Agendamento encerrado ou em uso.");
-    const d = appointmentSchema.parse(req.body);
+    const d = {
+      ...appointmentSchema.parse(req.body),
+      ...parseItems(req.body, 25),
+    };
     validateDate(d.date);
     await transaction(db, async () => {
       await run(
@@ -833,6 +909,8 @@ export function createApp({
         d.quantity,
         a.id,
       );
+      await saveItems(a.id, "INITIAL", d.items);
+      await saveItems(a.id, "EXTRA", []);
       await resolveNotifications(a.id);
       await notifyStaff(
         "Agendamento editado",
@@ -926,8 +1004,9 @@ export function createApp({
             400,
             "Selecione a quantidade exata, sem dispositivos repetidos.",
           );
-        const devices = await validateDevices(d.device_ids, a.type),
-          lId = id();
+        const devices = await validateDevices(d.device_ids);
+        validateComposition(devices, a.items);
+        const lId = id();
         await run(
           "INSERT INTO loans(id,appointment_id,teacher_id,ti_id,class_name,departed_at) VALUES(?,?,?,?,?,?)",
           lId,
@@ -1006,12 +1085,12 @@ export function createApp({
       fail(403, "Somente o professor responsável pode solicitar extras.");
     if (l.status !== "EM_USO")
       fail(409, "Movimentação encerrada para pedidos.");
-    const d = z
-      .object({
-        quantity: z.number().int().min(1).max(5),
-      })
-      .parse(req.body);
     const a = await appointment(l.appointment_id);
+    const d = parseItems(
+      req.body,
+      5,
+      a.items.length === 1 ? a.type : undefined,
+    );
     if (a.extras) fail(409, "Já existe um pedido extra para esta aula.");
     await transaction(db, async () => {
       await run(
@@ -1019,6 +1098,7 @@ export function createApp({
         d.quantity,
         a.id,
       );
+      await saveItems(a.id, "EXTRA", d.items);
       await notifyStaff(
         "Dispositivos extras",
         `${req.user.name} solicitou ${d.quantity} dispositivos extras.`,
@@ -1056,7 +1136,8 @@ export function createApp({
           new Set(d.device_ids).size !== a.extras
         )
           fail(400, "Selecione a quantidade exata de extras.");
-        const devices = await validateDevices(d.device_ids, a.type);
+        const devices = await validateDevices(d.device_ids);
+        validateComposition(devices, a.extra_items);
         for (const device of devices)
           await run(
             "INSERT INTO loan_items(id,loan_id,device_id,departure_status) VALUES(?,?,?,?)",

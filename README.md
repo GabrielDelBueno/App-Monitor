@@ -82,7 +82,7 @@ O administrador mantém **Usuários**, com **Editar** para nome, e-mail e perfil
 ## Fluxo operacional
 
 1. Cadastre professores, TI e equipamentos. A tela de inventário gera etiquetas QR para impressão.
-2. O professor solicita entre 1 e 25 dispositivos para uma data entre hoje e os próximos 14 dias. Datas são interpretadas no fuso `America/Sao_Paulo`.
+2. O professor escolhe um ou mais tipos (tablet, notebook, Chromebook e celular), informa a quantidade de cada um e solicita entre 1 e 25 dispositivos no total para uma data entre hoje e os próximos 14 dias. Datas são interpretadas no fuso `America/Sao_Paulo`.
 3. TI aprova e libera a quantidade exata no dia agendado. Equipamentos em uso, manutenção ou quebrados não podem ser liberados. A seleção pode usar câmera, leitor USB, entrada manual ou caixas de seleção. A câmera requer HTTPS ou um contexto local autorizado.
 4. O professor associa alunos a todos os aparelhos. Pode fazer um único pedido extra de até 5 aparelhos; TI libera esses extras separadamente.
 5. O professor envia o relato obrigatório de devolução. Até a conferência física, os aparelhos continuam indisponíveis.
@@ -179,3 +179,9 @@ A importação usa transação, exige administrador, bloqueia identificadores em
 A planilha recebida em 08/10/2026 tem 201 selecionados: 124 tablets, 45 notebooks de sala de aula, 7 educacionais e 25 celulares; 2 não têm série. Nenhuma linha danificada/inservível é importada. A planilha e seus identificadores não são incorporados aos arquivos públicos nem ao Git.
 
 Publique primeiro o backend **app-monitor**, aguarde Live, e depois **app-monitor-interface**. As migrações adicionam campos e aceitam Celular sem apagar cadastros ou empréstimos. A versão anterior com a linha é `5397e1f`; uma reversão de código deve preservar o banco e avaliar o tratamento de Celular no frontend anterior. Não restaure um banco antigo para reverter aparência ou funcionalidade.
+
+### Agendamentos com vários tipos
+
+No formulário, marque primeiro os tipos desejados e depois informe a quantidade de cada um. Exemplo: 10 tablets + 2 notebooks. Na liberação, TI acompanha a contagem por tipo; o sistema exige a composição exata do pedido. Extras também permitem escolher tipos e quantidades, até 5 aparelhos no total. Agendamentos anteriores continuam funcionando. A tabela adicional `appointment_items` é criada automaticamente na inicialização, sem apagar ou recriar registros existentes.
+
+Para publicar esta atualização, faça o deploy do backend `app-monitor` primeiro e depois do Static Site `app-monitor-interface`, na branch `app-monitor-funcional`.
