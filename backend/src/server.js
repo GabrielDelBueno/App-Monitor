@@ -1052,6 +1052,7 @@ export function createApp({
             z.object({
               id: z.string(),
               student: z.string().trim().max(200),
+              not_used: z.boolean().default(false),
             }),
           )
           .min(1)
@@ -1069,8 +1070,9 @@ export function createApp({
         )
           fail(400, "Item inválido.");
         await run(
-          "UPDATE loan_items SET student=? WHERE id=?",
-          item.student,
+          "UPDATE loan_items SET student=?,not_used=? WHERE id=?",
+          item.not_used ? "" : item.student,
+          item.not_used ? 1 : 0,
           item.id,
         );
       }
@@ -1171,11 +1173,14 @@ export function createApp({
       .parse(req.body);
     if (
       await get(
-        "SELECT id FROM loan_items WHERE loan_id=? AND trim(student)=''",
+        "SELECT id FROM loan_items WHERE loan_id=? AND trim(student)='' AND not_used=0",
         l.id,
       )
     )
-      fail(400, "Associe um aluno a cada dispositivo antes de devolver.");
+      fail(
+        400,
+        "Informe o aluno ou marque Não usei em cada dispositivo antes de devolver.",
+      );
     await transaction(db, async () => {
       await run(
         "UPDATE loans SET status='AGUARDANDO_DEVOLUCAO',report=? WHERE id=?",

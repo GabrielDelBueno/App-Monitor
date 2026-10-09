@@ -349,6 +349,12 @@ test("associação, devolução, conferência e desbloqueio por assinatura", asy
     (await prof(`/api/loans/${loan.id}/students`, "PATCH", { items })).status,
     200,
   );
+  const unused = await prof(`/api/loans/${loan.id}/students`, "PATCH", {
+    items: [{ id: items[0].id, student: "Nome anterior", not_used: true }],
+  });
+  assert.equal(unused.status, 200);
+  assert.equal(unused.data.items.find((i) => i.id === items[0].id).student, "");
+  assert.equal(unused.data.items.find((i) => i.id === items[0].id).not_used, 1);
   assert.equal(
     (
       await prof(`/api/loans/${loan.id}/return`, "POST", {

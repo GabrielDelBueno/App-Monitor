@@ -44,6 +44,15 @@ export function openDatabase(path) {
   db.exec(schema);
   if (
     !db
+      .prepare("PRAGMA table_info(loan_items)")
+      .all()
+      .some((c) => c.name === "not_used")
+  )
+    db.exec(
+      "ALTER TABLE loan_items ADD COLUMN not_used INTEGER NOT NULL DEFAULT 0 CHECK(not_used IN (0,1))",
+    );
+  if (
+    !db
       .prepare("PRAGMA table_info(users)")
       .all()
       .some((column) => column.name === "must_change_password")

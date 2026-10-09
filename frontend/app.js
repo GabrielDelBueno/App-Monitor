@@ -551,6 +551,19 @@ function release() {
             )
             .join(" • ")}</div>`
         : ""
+    }${
+      a && !l
+        ? `<div class="section">${field(
+            "Reutilizar aparelhos de uma aula anterior",
+            `<select id="reuseLoan"><option value="">Selecione a aula</option>${state.loans
+              .filter((previous) => previous.teacher_id === a.teacher_id)
+              .map(
+                (previous) =>
+                  `<option value="${previous.id}">${h(previous.class_name)} • ${h(new Date(previous.departed_at).toLocaleString("pt-BR"))} • ${previous.items.length} aparelhos</option>`,
+              )
+              .join("")}</select>`,
+          )}${button("Puxar aparelhos", 'id="reuseDevices" type="button"')}<p class="muted">Somente aparelhos disponíveis, dentro das quantidades aprovadas. Os nomes dos alunos ficam em branco. Para mais aparelhos, complete a seleção ou ajuste o agendamento antes de liberar.</p></div>`
+        : ""
     }<div class="toolbar section">${field("QR / código de barras / patrimônio ou série", '<input id="qrInput" placeholder="Leia ou digite o código">')}${button("Adicionar código", 'id="addCode"', "primary")}${button("📷 Abrir câmera", 'id="scan"')}${button(`Liberar ${state.selection.size}${needed ? ` / ${needed}` : ""} dispositivos`, 'id="releaseDevices"', "success")}</div></div><div class="card section"><h2>Equipamentos disponíveis</h2>${table(
       ["Selecionar", "Patrimônio", "Tipo", "Estado"],
       eligible.map(
@@ -721,15 +734,24 @@ function loanModal(l) {
       ],
       l.items.map(
         (i) =>
-          `<tr><td>${h(i.number)}</td><td>${teacher && l.status === "EM_USO" ? `<input class="student-input" data-item="${i.id}" value="${h(i.student)}" maxlength="200" aria-label="Aluno do dispositivo ${h(i.number)}">` : h(i.student || "Não informado")}</td><td>${status(i.departure_status)}</td>${staff() && l.status === "AGUARDANDO_DEVOLUCAO" ? `<td><select data-return="${i.id}" aria-label="Estado de ${h(i.number)}">${options(["BOM_ESTADO", "CONSERVADO", "EM_MANUTENCAO", "QUEBRADO"], i.departure_status)}</select></td><td><input data-comment="${i.id}" maxlength="2000" placeholder="Obrigatório se alterar o estado" aria-label="Comentário sobre ${h(i.number)}"></td>` : ""}</tr>`,
+          `<tr><td>${h(i.number)}</td><td>${teacher && l.status === "EM_USO" ? `<input class="student-input" data-item="${i.id}" value="${h(i.student)}" ${i.not_used ? "disabled" : ""} maxlength="200" aria-label="Aluno do dispositivo ${h(i.number)}"><label><input type="checkbox" data-unused="${i.id}" ${i.not_used ? "checked" : ""}> Não usei</label>` : h(i.not_used ? "Não usei" : i.student || "Não informado")}</td><td>${status(i.departure_status)}</td>${staff() && l.status === "AGUARDANDO_DEVOLUCAO" ? `<td><select data-return="${i.id}" aria-label="Estado de ${h(i.number)}">${options(["BOM_ESTADO", "CONSERVADO", "EM_MANUTENCAO", "QUEBRADO"], i.departure_status)}</select></td><td><input data-comment="${i.id}" maxlength="2000" placeholder="Obrigatório se alterar o estado" aria-label="Comentário sobre ${h(i.number)}"></td>` : ""}</tr>`,
       ),
     )}${teacher && l.status === "EM_USO" ? `${field("Relato da utilização e devolução", '<textarea id="returnReport" rows="4" minlength="5" maxlength="4000" placeholder="Relate a utilização e qualquer ocorrência."></textarea>')}<div class="toolbar section">${button("Salvar associações", 'id="saveStudents" type="button"', "primary")}${button("Solicitar extras", 'id="requestExtras" type="button"')}${button("Enviar devolução", 'id="submitReturn" type="button"', "success")}</div>` : ""}${staff() && l.status === "AGUARDANDO_DEVOLUCAO" ? `<p class="muted">Confira fisicamente todos os itens antes de concluir.</p>${button("Concluir conferência", 'id="checkReturn" type="button"', "success")}` : ""}</form>${staff() && l.status === "EM_USO" && a?.extras && l.items.length === a.quantity ? `<div class="notice">Pedido extra: ${h(requestSummary(a, true))}. ${button("Liberar extras", `id="releaseExtras"`)}</div>` : ""}`,
     true,
+  );
+  $$("[data-unused]").forEach(
+    (box) =>
+      (box.onchange = () => {
+        const input = $('[data-item="' + box.dataset.unused + '"]');
+        input.disabled = box.checked;
+        if (box.checked) input.value = "";
+      }),
   );
   const students = () =>
     $$("[data-item]").map((input) => ({
       id: input.dataset.item,
       student: input.value,
+      not_used: $(`[data-unused="${input.dataset.item}"]`).checked,
     }));
   if ($("#saveStudents"))
     $("#saveStudents").onclick = action(async () => {
@@ -744,8 +766,8 @@ function loanModal(l) {
       const report = $("#returnReport").value;
       if (report.trim().length < 5)
         return toast("Preencha o relato de devolução.");
-      if (students().some((i) => !i.student.trim()))
-        return toast("Associe todos os alunos antes de devolver.");
+      if (students().some((i) => !i.not_used && !i.student.trim()))
+        return toast("Informe os alunos ou marque Não usei antes de devolver.");
       await api(`/loans/${l.id}/students`, {
         method: "PATCH",
         body: { items: students() },
@@ -827,7 +849,7 @@ function reportModal(l) {
       ["Dispositivo", "Aluno", "Saída", "Retorno", "Comentário TI"],
       l.items.map(
         (i) =>
-          `<tr><td>${h(i.number)}</td><td>${h(i.student)}</td><td>${h(labels[i.departure_status])}</td><td>${h(labels[i.return_status] || "—")}</td><td class="wrap-cell">${h(i.ti_comment)}</td></tr>`,
+          `<tr><td>${h(i.number)}</td><td>${h(i.not_used ? "Não usei" : i.student)}</td><td>${h(labels[i.departure_status])}</td><td>${h(labels[i.return_status] || "—")}</td><td class="wrap-cell">${h(i.ti_comment)}</td></tr>`,
       ),
     )}<h3>Relato do professor</h3><p class="wrap-cell">${h(l.report)}</p><div class="signature-grid">${[
       "PROFESSOR",
@@ -1142,6 +1164,38 @@ function bind() {
         }
       }),
   );
+  if ($("#reuseDevices"))
+    $("#reuseDevices").onclick = () => {
+      const previous = state.loans.find((l) => l.id === $("#reuseLoan").value);
+      const a = state.appointments.find((a) => a.id === state.appointment);
+      if (!previous || !a) return toast("Selecione a aula anterior.");
+      let added = 0,
+        skipped = 0;
+      for (const item of previous.items) {
+        const device = state.devices.find((d) => d.id === item.device_id);
+        const requested = requestItems(a).find((i) => i.type === device?.type);
+        if (device && state.selection.has(device.id)) continue;
+        const count = state.devices.filter(
+          (d) => state.selection.has(d.id) && d.type === device?.type,
+        ).length;
+        if (
+          !device ||
+          device.in_use ||
+          ["QUEBRADO", "EM_MANUTENCAO"].includes(device.status) ||
+          !requested ||
+          count >= requested.quantity
+        ) {
+          skipped++;
+          continue;
+        }
+        state.selection.add(device.id);
+        added++;
+      }
+      render();
+      toast(
+        `${added} aparelhos adicionados. ${skipped} fora da quantidade ou indisponíveis. Complete a seleção se necessário.`,
+      );
+    };
   if ($("#addCode")) $("#addCode").onclick = () => addCode($("#qrInput").value);
   if ($("#qrInput"))
     $("#qrInput").onkeydown = (e) => {

@@ -185,3 +185,9 @@ Publique primeiro o backend **app-monitor**, aguarde Live, e depois **app-monito
 No formulário, marque primeiro os tipos desejados e depois informe a quantidade de cada um. Exemplo: 10 tablets + 2 notebooks. Na liberação, TI acompanha a contagem por tipo; o sistema exige a composição exata do pedido. Extras também permitem escolher tipos e quantidades, até 5 aparelhos no total. Agendamentos anteriores continuam funcionando. A tabela adicional `appointment_items` é criada automaticamente na inicialização, sem apagar ou recriar registros existentes.
 
 Para publicar esta atualização, faça o deploy do backend `app-monitor` primeiro e depois do Static Site `app-monitor-interface`, na branch `app-monitor-funcional`.
+
+### Reutilizar aparelhos e registrar os que não foram usados
+
+Na liberação de um novo agendamento aprovado, escolha uma aula anterior do mesmo professor em **Reutilizar aparelhos de uma aula anterior** e clique **Puxar aparelhos**. São selecionados apenas aparelhos disponíveis e dentro das quantidades aprovadas. Complete ou desmarque a seleção conforme necessário. Para aumentar a quantidade aprovada, edite o agendamento e aprove novamente; após a liberação, use o pedido de extras. O novo empréstimo inicia sem alunos associados e sem marcações de uso da aula anterior.
+
+O professor pode marcar **Não usei** ao lado de um aparelho. Essa opção limpa o nome associado, pode ser desmarcada durante a aula e permite enviar a devolução sem um aluno naquele item. O relatório registra a opção. Todos os aparelhos, usados ou não, continuam sujeitos à devolução e conferência.

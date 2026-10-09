@@ -85,6 +85,9 @@ export async function openPostgres(
       await query(
         "ALTER TABLE users ADD COLUMN IF NOT EXISTS must_change_password INTEGER NOT NULL DEFAULT 0",
       );
+      await query(
+        "ALTER TABLE loan_items ADD COLUMN IF NOT EXISTS not_used INTEGER NOT NULL DEFAULT 0 CHECK(not_used IN (0,1))",
+      );
       for (const column of [
         "internal_id",
         "serial_number",

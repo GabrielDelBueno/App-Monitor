@@ -122,6 +122,9 @@ test("ciclo escolar completo pelas telas e layout móvel", async ({ page }) => {
   await page.getByRole("button", { name: "Abrir movimentação" }).click();
   await page.getByLabel("Aluno do dispositivo TB-1").fill("Ana Souza");
   await page.getByLabel("Aluno do dispositivo TB-2").fill("Bruno Lima");
+  await page.getByLabel("Não usei", { exact: true }).nth(1).check();
+  await expect(page.getByLabel("Aluno do dispositivo TB-2")).toBeDisabled();
+  await expect(page.getByLabel("Aluno do dispositivo TB-2")).toHaveValue("");
   await page
     .getByLabel("Relato da utilização e devolução")
     .fill("Aula concluída. Equipamentos devolvidos sem ocorrências.");
@@ -147,10 +150,43 @@ test("ciclo escolar completo pelas telas e layout móvel", async ({ page }) => {
   await page.getByRole("button", { name: "Histórico", exact: true }).click();
   await page.getByRole("button", { name: "Visualizar / PDF" }).click();
   await expect(page.locator("#reportDocument")).toContainText("Concluído");
+  await expect(page.locator("#reportDocument")).toContainText("Não usei");
   await expect(page.locator(".signature-image")).toHaveCount(2);
   await page.emulateMedia({ media: "print" });
   await expect(page.locator("#reportDocument")).toBeVisible();
   await page.emulateMedia({ media: "screen" });
+  await page.getByRole("button", { name: "Fechar", exact: true }).click();
+  await page.getByRole("button", { name: "Agendamentos", exact: true }).click();
+  await page.getByRole("button", { name: "＋ Novo agendamento" }).click();
+  await page.getByLabel("Turma", { exact: true }).fill("9º Ano — reutilização");
+  await page.getByRole("checkbox", { name: "Tablet", exact: true }).check();
+  await page.getByRole("checkbox", { name: "Notebook", exact: true }).check();
+  await page.getByRole("button", { name: "Salvar agendamento" }).click();
+  await expect(page.locator("#modal")).toHaveCount(0);
+  await logout(page);
+  await login(page, "ti@browser.local");
+  await page.getByRole("button", { name: "Agendamentos", exact: true }).click();
+  await page.getByRole("button", { name: "Aprovar", exact: true }).click();
+  await page.getByRole("button", { name: "Liberar", exact: true }).click();
+  await page.locator("#reuseLoan").selectOption({ index: 1 });
+  await page
+    .getByRole("button", { name: "Puxar aparelhos", exact: true })
+    .click();
+  await expect(page.getByLabel("Selecionar TB-1")).toBeChecked();
+  await expect(page.getByLabel("Selecionar TB-2")).toBeChecked();
+  await page.locator("#releaseDevices").click();
+  await expect(
+    page.getByRole("button", { name: "Abrir movimentação" }),
+  ).toBeVisible();
+  await logout(page);
+  await login(page, "prof@browser.local");
+  await page.getByRole("button", { name: "Abrir movimentação" }).click();
+  await expect(page.getByLabel("Aluno do dispositivo TB-1")).toHaveValue("");
+  await expect(page.getByLabel("Aluno do dispositivo TB-2")).toHaveValue("");
+  await expect(page.getByLabel("Aluno do dispositivo TB-2")).toBeEnabled();
+  await expect(
+    page.getByLabel("Não usei", { exact: true }).nth(1),
+  ).not.toBeChecked();
   await page.getByRole("button", { name: "Fechar", exact: true }).click();
   await page.setViewportSize({ width: 390, height: 844 });
   await page.getByRole("button", { name: "Visão geral", exact: true }).click();
