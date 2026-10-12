@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { createApp } from "../backend/src/server.js";
+import { createApp, provisionManagers } from "../backend/src/server.js";
 import { createUser, openDatabase } from "../backend/src/database.js";
 import { openPostgres } from "../backend/src/postgres.js";
 import QRCode from "qrcode";
@@ -62,6 +62,7 @@ before(async () => {
     password,
     role: "ADMINISTRADOR",
   });
+  await provisionManagers(db, "admin@test.local");
   server = instance.app.listen(0, "127.0.0.1");
   await new Promise((r) => server.once("listening", r));
   base = `http://127.0.0.1:${server.address().port}`;

@@ -7,4 +7,7 @@ createUser(db, {
   password: "Browser-test-123!",
   role: "ADMINISTRADOR",
 });
+db.prepare("UPDATE users SET is_manager=1 WHERE email=?").run(
+  "admin@browser.local",
+);
 app.listen(3344, "127.0.0.1");

@@ -44,6 +44,49 @@ class HttpError extends Error {
 const fail = (status, message) => {
   throw new HttpError(status, message);
 };
+export async function provisionManagers(db, value = "") {
+  const emails = [
+    ...new Set(
+      value
+        .split(",")
+        .map((e) => e.trim().toLowerCase())
+        .filter(Boolean),
+    ),
+  ];
+  if (!emails.length) return;
+  z.array(z.email()).parse(emails);
+  await transaction(db, async () => {
+    for (const email of emails) {
+      const account = await db
+        .prepare(
+          "SELECT id,is_manager FROM users WHERE lower(email)=? AND active=1",
+        )
+        .get(email);
+      if (!account)
+        throw Error(
+          "Gerente configurado precisa ter uma conta ativa existente.",
+        );
+      if (account.is_manager) continue;
+      await db
+        .prepare(
+          "UPDATE users SET is_manager=1,role='ADMINISTRADOR' WHERE id=?",
+        )
+        .run(account.id);
+      await db.prepare("DELETE FROM sessions WHERE user_id=?").run(account.id);
+      await db
+        .prepare(
+          "INSERT INTO audit(id,user_id,action,entity_id,details,created_at) VALUES(?,NULL,?,?,?,?)",
+        )
+        .run(
+          id(),
+          "ATIVAR_GERENTE",
+          account.id,
+          JSON.stringify({ source: "server_configuration" }),
+          now(),
+        );
+    }
+  });
+}
 export function createApp({
   database,
   databasePath = process.env.DATABASE_PATH ||
@@ -118,12 +161,28 @@ export function createApp({
       "UPDATE notifications SET status='CONCLUIDA' WHERE entity_id=?",
       entity,
     );
-  const staff = (u) => u.role === "TI" || u.role === "ADMINISTRADOR";
+  const staff = (u) => ["TI", "ADMINISTRADOR", "GERENTE"].includes(u.role);
+  const mustOperate = (u) => {
+    if (!["TI", "GERENTE"].includes(u.role))
+      fail(403, "Operação restrita ao TI ou gerente.");
+  };
+  const mustSchedule = (u) => {
+    if (u.role === "ADMINISTRADOR")
+      fail(
+        403,
+        "O administrador acompanha os agendamentos, mas não cria ou altera pedidos.",
+      );
+  };
+  const protectManager = async (actor, userId) => {
+    const target = await get("SELECT is_manager FROM users WHERE id=?", userId);
+    if (target?.is_manager && actor.role !== "GERENTE")
+      fail(403, "Conta protegida.");
+  };
   const mustStaff = (u) => {
     if (!staff(u)) fail(403, "Acesso restrito à equipe de TI.");
   };
   const mustAdmin = (u) => {
-    if (u.role !== "ADMINISTRADOR")
+    if (!["ADMINISTRADOR", "GERENTE"].includes(u.role))
       fail(403, "Acesso restrito ao administrador.");
   };
   const blocked = async (u) =>
@@ -261,13 +320,13 @@ export function createApp({
       ? createHash("sha256").update(token).digest("hex")
       : "";
     const user = await get(
-      "SELECT u.id,u.name,u.email,u.role,u.active,u.must_change_password FROM sessions s JOIN users u ON u.id=s.user_id WHERE s.token=? AND s.expires_at>? AND u.active=1",
+      "SELECT u.id,u.name,u.email,u.role,u.active,u.must_change_password,u.is_manager FROM sessions s JOIN users u ON u.id=s.user_id WHERE s.token=? AND s.expires_at>? AND u.active=1",
       sessionHash,
       Date.now(),
     );
     return user
       ? {
-          user,
+          user: { ...user, role: user.is_manager ? "GERENTE" : user.role },
           sessionHash,
         }
       : null;
@@ -512,7 +571,7 @@ export function createApp({
       id: u.id,
       name: u.name,
       email: u.email,
-      role: u.role,
+      role: u.is_manager ? "GERENTE" : u.role,
     });
   });
   app.use("/api", async (req, res, next) => {
@@ -588,7 +647,7 @@ export function createApp({
     mustStaff(req.user);
     res.json(
       await all(
-        "SELECT id,name,email,role,active,must_change_password FROM users ORDER BY name",
+        `SELECT id,name,email,CASE WHEN is_manager=1 THEN 'GERENTE' ELSE role END AS role,active,must_change_password FROM users ${req.user.role === "GERENTE" ? "" : "WHERE is_manager=0"} ORDER BY name`,
       ),
     );
   });
@@ -621,6 +680,7 @@ export function createApp({
   });
   app.post("/api/users/:id/password", async (req, res) => {
     mustAdmin(req.user);
+    await protectManager(req.user, req.params.id);
     if (req.params.id === req.user.id)
       fail(409, "Altere sua própria senha em Conta.");
     if (!(await get("SELECT id FROM users WHERE id=?", req.params.id)))
@@ -647,6 +707,7 @@ export function createApp({
   });
   app.patch("/api/users/:id", async (req, res) => {
     mustAdmin(req.user);
+    await protectManager(req.user, req.params.id);
     const d = z
       .object({
         name: text.optional(),
@@ -660,8 +721,12 @@ export function createApp({
         "Informe uma alteração.",
       )
       .parse(req.body);
+    if (d.active !== undefined && req.user.role !== "GERENTE")
+      fail(403, "Somente o gerente altera a ativação de contas.");
     const existing = await get("SELECT * FROM users WHERE id=?", req.params.id);
     if (!existing) fail(404, "Usuário não encontrado.");
+    if (existing.is_manager && d.role && d.role !== "ADMINISTRADOR")
+      fail(403, "Perfil de gerente é controlado na configuração privada.");
     if (
       req.params.id === req.user.id &&
       (d.active === false || (d.role && d.role !== "ADMINISTRADOR"))
@@ -696,6 +761,54 @@ export function createApp({
         `SELECT d.*,EXISTS(SELECT 1 FROM loan_items i JOIN loans l ON l.id=i.loan_id WHERE i.device_id=d.id AND l.status IN ('EM_USO','AGUARDANDO_DEVOLUCAO')) AS in_use FROM devices d WHERE d.active=1 ORDER BY d.number`,
       ),
     );
+  });
+  app.get("/api/devices/export", async (req, res) => {
+    mustStaff(req.user);
+    const rows = await all(
+      "SELECT d.*,EXISTS(SELECT 1 FROM loan_items i JOIN loans l ON l.id=i.loan_id WHERE i.device_id=d.id AND l.status IN ('EM_USO','AGUARDANDO_DEVOLUCAO')) AS in_use FROM devices d WHERE d.active=1 ORDER BY d.number",
+    );
+    const cell = (value) =>
+      '"' +
+      String(value ?? "")
+        .replace(/^\s*[=+@-]|^[\t\r\n]/, "'$&")
+        .replaceAll('"', '""') +
+      '"';
+    const headers = [
+      "Controle interno UE",
+      "Patrimônio",
+      "Número de série",
+      "Fabricante",
+      "Modelo",
+      "Tipo",
+      "Estado",
+      "Disponibilidade",
+      "Código QR",
+      "Observações",
+    ];
+    const lines = [
+      headers,
+      ...rows.map((d) => [
+        d.internal_id,
+        d.number,
+        d.serial_number,
+        d.manufacturer,
+        d.model,
+        d.type,
+        d.status,
+        d.in_use ? "Em uso" : "No inventário",
+        d.qr,
+        d.notes,
+      ]),
+    ];
+    res
+      .set(
+        "Content-Disposition",
+        'attachment; filename="inventario-app-monitor.csv"',
+      )
+      .type("text/csv; charset=utf-8")
+      .send(
+        "\ufeff" + lines.map((row) => row.map(cell).join(";")).join("\r\n"),
+      );
   });
   app.get("/api/devices/:id/qr", async (req, res) => {
     mustStaff(req.user);
@@ -737,7 +850,7 @@ export function createApp({
     res.json(summary);
   });
   app.post("/api/devices", async (req, res) => {
-    mustStaff(req.user);
+    mustOperate(req.user);
     const d = z
       .object({
         number: text,
@@ -770,7 +883,7 @@ export function createApp({
       .json(await get("SELECT * FROM devices WHERE id=?", deviceId));
   });
   app.patch("/api/devices/:id", async (req, res) => {
-    mustStaff(req.user);
+    mustOperate(req.user);
     const d = z
       .object({
         internal_id: deviceFields.internal_id.removeDefault().optional(),
@@ -808,7 +921,7 @@ export function createApp({
     });
   });
   app.delete("/api/devices/:id", async (req, res) => {
-    mustStaff(req.user);
+    mustOperate(req.user);
     if (
       !(await get(
         "SELECT id FROM devices WHERE id=? AND active=1",
@@ -849,6 +962,7 @@ export function createApp({
       fail(400, "Agende entre hoje e os próximos 14 dias.");
   };
   app.post("/api/appointments", async (req, res) => {
+    mustSchedule(req.user);
     await mustUnblocked(req.user);
     const d = {
       ...appointmentSchema.parse(req.body),
@@ -888,6 +1002,7 @@ export function createApp({
     res.status(201).json(await appointment(aId));
   });
   app.patch("/api/appointments/:id", async (req, res) => {
+    mustSchedule(req.user);
     await mustUnblocked(req.user);
     const a = await appointment(req.params.id);
     if (!staff(req.user) && a.teacher_id !== req.user.id)
@@ -976,7 +1091,7 @@ export function createApp({
     ),
   );
   app.post("/api/loans", async (req, res) => {
-    mustStaff(req.user);
+    mustOperate(req.user);
     const d = z
       .object({
         appointment_id: z.string(),
@@ -1114,7 +1229,7 @@ export function createApp({
     });
   });
   app.post("/api/loans/:id/extras/release", async (req, res) => {
-    mustStaff(req.user);
+    mustOperate(req.user);
     const l = await loan(req.params.id);
     const a = await appointment(l.appointment_id);
     const d = z
@@ -1199,7 +1314,7 @@ export function createApp({
     res.json(await fullLoan(await loan(l.id)));
   });
   app.post("/api/loans/:id/check", async (req, res) => {
-    mustStaff(req.user);
+    mustOperate(req.user);
     const l = await loan(req.params.id);
     if (l.status !== "AGUARDANDO_DEVOLUCAO")
       fail(409, "Aguarde o professor enviar a devolução.");
@@ -1261,7 +1376,7 @@ export function createApp({
   app.post("/api/loans/:id/sign", async (req, res) => {
     const l = await loan(req.params.id);
     const type = req.user.id === l.teacher_id ? "PROFESSOR" : "TI";
-    if (type === "TI") mustStaff(req.user);
+    if (type === "TI") mustOperate(req.user);
     if (l.status !== "AGUARDANDO_ASSINATURAS")
       fail(409, "Relatório ainda não está disponível para assinatura.");
     const d = z
@@ -1446,7 +1561,8 @@ if (
     const database = process.env.DATABASE_URL
       ? await openPostgres(process.env.DATABASE_URL)
       : undefined;
-    const { app } = createApp({ database });
+    const { app, db } = createApp({ database });
+    await provisionManagers(db, process.env.MANAGER_EMAILS);
     const port = Number(process.env.PORT || 3333);
     app.listen(port, process.env.HOST || "0.0.0.0", () =>
       console.log(`APP Monitor iniciado na porta ${port}`),

@@ -29,6 +29,7 @@ const labels = {
   TI: "TI",
   PROFESSOR: "Professor",
   ADMINISTRADOR: "Administrador",
+  GERENTE: "Gerente",
 };
 const state = {
   user: null,
@@ -49,6 +50,9 @@ let scannerControls = null,
   scannerReader = null,
   generation = 0;
 const staff = () => state.user && state.user.role !== "PROFESSOR";
+const operates = () => ["TI", "GERENTE"].includes(state.user?.role);
+const manages = () => ["ADMINISTRADOR", "GERENTE"].includes(state.user?.role);
+const schedules = () => state.user?.role !== "ADMINISTRADOR";
 const fmt = (v) =>
   v
     ? new Date(v).toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" })
@@ -301,21 +305,13 @@ function navItems() {
   return [
     ["dashboard", "▦", "Visão geral"],
     ["appointments", "▣", "Agendamentos"],
-    ...(staff()
-      ? [
-          ["release", "⌁", "Liberar dispositivos"],
-          ["inventory", "▤", "Inventário"],
-        ]
-      : []),
+    ...(operates() ? [["release", "⌁", "Liberar dispositivos"]] : []),
     ["loans", "↩", staff() ? "Movimentações e retorno" : "Meus dispositivos"],
     ["reports", "✍", "Relatórios e assinaturas"],
+    ...(staff() ? [["inventory", "▤", "Inventário"]] : []),
+    ...(manages() ? [["users", "♙", "Usuários"]] : []),
     ["history", "◷", "Histórico"],
-    ...(state.user.role === "ADMINISTRADOR"
-      ? [
-          ["users", "♙", "Usuários"],
-          ["audit", "≡", "Auditoria"],
-        ]
-      : []),
+    ...(manages() ? [["audit", "≡", "Auditoria"]] : []),
   ];
 }
 function render() {
@@ -350,7 +346,9 @@ function dashboard() {
     hero(
       `Olá, ${state.user.name.split(" ")[0]}`,
       "Acompanhe os equipamentos, as aulas e os relatórios da escola.",
-      button("＋ Novo agendamento", "data-new-appointment", "primary"),
+      schedules()
+        ? button("＋ Novo agendamento", "data-new-appointment", "primary")
+        : "",
     ) +
     `<div class="grid">${[
       [
@@ -398,7 +396,9 @@ function appointments() {
     hero(
       "Agendamentos",
       "Pedidos de até 25 dispositivos, entre hoje e os próximos 14 dias.",
-      button("＋ Novo agendamento", "data-new-appointment", "primary"),
+      schedules()
+        ? button("＋ Novo agendamento", "data-new-appointment", "primary")
+        : "",
     ) +
     `<div class="card">${table(
       [
@@ -411,7 +411,7 @@ function appointments() {
       ],
       state.appointments.map(
         (a) =>
-          `<tr><td>${date(a.date)} • ${h(a.time)}</td><td>${h(a.teacher_name)}</td><td>${h(a.class_name)}</td><td>${h(requestSummary(a))}${a.extras ? ` + ${a.extras} extras` : ""}</td><td>${status(a.status)}</td><td><div class="toolbar">${["PENDENTE", "APROVADO"].includes(a.status) ? button("Editar", `data-edit-appointment="${a.id}"`) + button("Cancelar", `data-cancel="${a.id}"`, "danger") : ""}${staff() && a.status === "PENDENTE" ? button("Aprovar", `data-approve="${a.id}"`, "success") : ""}${staff() && a.status === "APROVADO" ? button("Liberar", `data-release="${a.id}"`, "primary") : ""}</div></td></tr>`,
+          `<tr><td>${date(a.date)} • ${h(a.time)}</td><td>${h(a.teacher_name)}</td><td>${h(a.class_name)}</td><td>${h(requestSummary(a))}${a.extras ? ` + ${a.extras} extras` : ""}</td><td>${status(a.status)}</td><td><div class="toolbar">${schedules() && ["PENDENTE", "APROVADO"].includes(a.status) ? button("Editar", `data-edit-appointment="${a.id}"`) + button("Cancelar", `data-cancel="${a.id}"`, "danger") : ""}${staff() && a.status === "PENDENTE" ? button("Aprovar", `data-approve="${a.id}"`, "success") : ""}${operates() && a.status === "APROVADO" ? button("Liberar", `data-release="${a.id}"`, "primary") : ""}</div></td></tr>`,
       ),
     )}</div>`
   );
@@ -619,10 +619,11 @@ function inventory() {
     hero(
       "Inventário",
       "Cadastre equipamentos e acompanhe seu estado de conservação.",
-      button("＋ Cadastrar dispositivo", 'id="newDevice"', "primary") +
-        (state.user.role === "ADMINISTRADOR"
-          ? button("Importar planilha", 'id="importInventory"')
-          : ""),
+      (operates()
+        ? button("＋ Cadastrar dispositivo", 'id="newDevice"', "primary")
+        : "") +
+        button("Exportar planilha", 'id="exportInventory"') +
+        (manages() ? button("Importar planilha", 'id="importInventory"') : ""),
     ) +
     `<div class="card">${field("Buscar por controle interno, série, QR, modelo ou fabricante", '<input id="inventorySearch" placeholder="Digite para filtrar">')}<div class="section" id="deviceList">${inventoryTable(state.devices)}</div></div>`
   );
@@ -640,7 +641,7 @@ function inventoryTable(devices) {
     ],
     devices.map(
       (d) =>
-        `<tr><td><b>${h(d.internal_id || d.number)}</b>${d.internal_id && d.internal_id !== d.number ? `<br><small>Patrimônio: ${h(d.number)}</small>` : ""}<br><small>${h(d.qr)}</small></td><td>${h(d.serial_number || "Não informado")}</td><td>${h(d.manufacturer || "—")}<br><small>${h(d.model || "—")}</small></td><td>${h(labels[d.type])}</td><td>${status(d.status)}</td><td>${d.in_use ? "Em uso" : "No inventário"}</td><td><div class="toolbar">${button("QR", `data-qr="${d.id}"`)}${button("Editar dispositivo", `data-edit-device="${d.id}"`)}${button("Excluir", `data-delete-device="${d.id}"`, "danger")}</div></td></tr>`,
+        `<tr><td><b>${h(d.internal_id || d.number)}</b>${d.internal_id && d.internal_id !== d.number ? `<br><small>Patrimônio: ${h(d.number)}</small>` : ""}<br><small>${h(d.qr)}</small></td><td>${h(d.serial_number || "Não informado")}</td><td>${h(d.manufacturer || "—")}<br><small>${h(d.model || "—")}</small></td><td>${h(labels[d.type])}</td><td>${status(d.status)}</td><td>${d.in_use ? "Em uso" : "No inventário"}</td><td><div class="toolbar">${button("QR", `data-qr="${d.id}"`)}${operates() ? button("Editar dispositivo", `data-edit-device="${d.id}"`) + button("Excluir", `data-delete-device="${d.id}"`, "danger") : ""}</div></td></tr>`,
     ),
   );
 }
@@ -728,15 +729,15 @@ function loanModal(l) {
         "Dispositivo",
         "Aluno",
         "Saída",
-        ...(staff() && l.status === "AGUARDANDO_DEVOLUCAO"
+        ...(operates() && l.status === "AGUARDANDO_DEVOLUCAO"
           ? ["Retorno", "Comentário TI"]
           : []),
       ],
       l.items.map(
         (i) =>
-          `<tr><td>${h(i.number)}</td><td>${teacher && l.status === "EM_USO" ? `<input class="student-input" data-item="${i.id}" value="${h(i.student)}" ${i.not_used ? "disabled" : ""} maxlength="200" aria-label="Aluno do dispositivo ${h(i.number)}"><label><input type="checkbox" data-unused="${i.id}" ${i.not_used ? "checked" : ""}> Não usei</label>` : h(i.not_used ? "Não usei" : i.student || "Não informado")}</td><td>${status(i.departure_status)}</td>${staff() && l.status === "AGUARDANDO_DEVOLUCAO" ? `<td><select data-return="${i.id}" aria-label="Estado de ${h(i.number)}">${options(["BOM_ESTADO", "CONSERVADO", "EM_MANUTENCAO", "QUEBRADO"], i.departure_status)}</select></td><td><input data-comment="${i.id}" maxlength="2000" placeholder="Obrigatório se alterar o estado" aria-label="Comentário sobre ${h(i.number)}"></td>` : ""}</tr>`,
+          `<tr><td>${h(i.number)}</td><td>${teacher && l.status === "EM_USO" ? `<input class="student-input" data-item="${i.id}" value="${h(i.student)}" ${i.not_used ? "disabled" : ""} maxlength="200" aria-label="Aluno do dispositivo ${h(i.number)}"><label><input type="checkbox" data-unused="${i.id}" ${i.not_used ? "checked" : ""}> Não usei</label>` : h(i.not_used ? "Não usei" : i.student || "Não informado")}</td><td>${status(i.departure_status)}</td>${operates() && l.status === "AGUARDANDO_DEVOLUCAO" ? `<td><select data-return="${i.id}" aria-label="Estado de ${h(i.number)}">${options(["BOM_ESTADO", "CONSERVADO", "EM_MANUTENCAO", "QUEBRADO"], i.departure_status)}</select></td><td><input data-comment="${i.id}" maxlength="2000" placeholder="Obrigatório se alterar o estado" aria-label="Comentário sobre ${h(i.number)}"></td>` : ""}</tr>`,
       ),
-    )}${teacher && l.status === "EM_USO" ? `${field("Relato da utilização e devolução", '<textarea id="returnReport" rows="4" minlength="5" maxlength="4000" placeholder="Relate a utilização e qualquer ocorrência."></textarea>')}<div class="toolbar section">${button("Salvar associações", 'id="saveStudents" type="button"', "primary")}${button("Solicitar extras", 'id="requestExtras" type="button"')}${button("Enviar devolução", 'id="submitReturn" type="button"', "success")}</div>` : ""}${staff() && l.status === "AGUARDANDO_DEVOLUCAO" ? `<p class="muted">Confira fisicamente todos os itens antes de concluir.</p>${button("Concluir conferência", 'id="checkReturn" type="button"', "success")}` : ""}</form>${staff() && l.status === "EM_USO" && a?.extras && l.items.length === a.quantity ? `<div class="notice">Pedido extra: ${h(requestSummary(a, true))}. ${button("Liberar extras", `id="releaseExtras"`)}</div>` : ""}`,
+    )}${teacher && l.status === "EM_USO" ? `${field("Relato da utilização e devolução", '<textarea id="returnReport" rows="4" minlength="5" maxlength="4000" placeholder="Relate a utilização e qualquer ocorrência."></textarea>')}<div class="toolbar section">${button("Salvar associações", 'id="saveStudents" type="button"', "primary")}${button("Solicitar extras", 'id="requestExtras" type="button"')}${button("Enviar devolução", 'id="submitReturn" type="button"', "success")}</div>` : ""}${operates() && l.status === "AGUARDANDO_DEVOLUCAO" ? `<p class="muted">Confira fisicamente todos os itens antes de concluir.</p>${button("Concluir conferência", 'id="checkReturn" type="button"', "success")}` : ""}</form>${operates() && l.status === "EM_USO" && a?.extras && l.items.length === a.quantity ? `<div class="notice">Pedido extra: ${h(requestSummary(a, true))}. ${button("Liberar extras", `id="releaseExtras"`)}</div>` : ""}`,
     true,
   );
   $$("[data-unused]").forEach(
@@ -842,7 +843,7 @@ function reportModal(l) {
   const ownType = state.user.id === l.teacher_id ? "PROFESSOR" : "TI";
   const canSign =
     l.status === "AGUARDANDO_ASSINATURAS" &&
-    (ownType === "PROFESSOR" || staff()) &&
+    (ownType === "PROFESSOR" || operates()) &&
     !l.signatures.some((s) => s.type === ownType);
   modal(
     `<div id="reportDocument" class="report-preview"><div class="report-title"><h2>APP Monitor • Relatório de empréstimo</h2><small>Registro ${h(l.id)}</small></div><div class="report-meta"><div><b>Professor:</b> ${h(l.teacher.name)}</div><div><b>Turma:</b> ${h(l.class_name)}</div><div><b>TI da liberação:</b> ${h(l.ti.name)}</div><div><b>Situação:</b> ${h(labels[l.status])}</div><div><b>Saída:</b> ${fmt(l.departed_at)}</div><div><b>Retorno conferido:</b> ${fmt(l.returned_at)}</div></div>${table(
@@ -920,7 +921,7 @@ function users() {
       ["Nome", "E-mail", "Perfil", "Situação", "Ação"],
       state.users.map(
         (u) =>
-          `<tr><td>${h(u.name)}</td><td>${h(u.email)}</td><td>${labels[u.role]}</td><td>${u.active ? "Ativo" : "Inativo"}</td><td>${button("Editar", `data-edit-user="${u.id}"`)} ${u.id !== state.user.id ? button(u.active ? "Desativar" : "Reativar", `data-user="${u.id}"`, u.active ? "danger" : "success") + " " + button("Redefinir senha", `data-reset-password="${u.id}"`) : ""}</td></tr>`,
+          `<tr><td>${h(u.name)}</td><td>${h(u.email)}</td><td>${labels[u.role]}</td><td>${u.active ? "Ativo" : "Inativo"}</td><td>${button("Editar", `data-edit-user="${u.id}"`)} ${u.id !== state.user.id ? (state.user.role === "GERENTE" ? button(u.active ? "Desativar" : "Reativar", `data-user="${u.id}"`, u.active ? "danger" : "success") : "") + " " + button("Redefinir senha", `data-reset-password="${u.id}"`) : ""}</td></tr>`,
       ),
     )}</div>`
   );
@@ -1225,6 +1226,19 @@ function bind() {
     });
   if ($("#importInventory"))
     $("#importInventory").onclick = importInventoryModal;
+  if ($("#exportInventory"))
+    $("#exportInventory").onclick = action(async () => {
+      const response = await fetch("/api/devices/export", {
+        credentials: "include",
+      });
+      if (!response.ok) throw Error("Não foi possível exportar o inventário.");
+      const url = URL.createObjectURL(await response.blob()),
+        link = document.createElement("a");
+      link.href = url;
+      link.download = "inventario-app-monitor.csv";
+      link.click();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    });
   if ($("#newDevice")) $("#newDevice").onclick = () => deviceModal();
   if ($("#inventorySearch"))
     $("#inventorySearch").oninput = (e) => {
@@ -1269,7 +1283,7 @@ function bind() {
       (button.onclick = () => {
         const user = state.users.find((u) => u.id === button.dataset.editUser);
         modal(
-          `<h3>Editar usuário</h3><form id="editUserForm"><div class="login-actions">${field("Nome completo", `<input name="name" value="${h(user.name)}" maxlength="200" required>`)}${field("E-mail", `<input name="email" type="email" value="${h(user.email)}" maxlength="200" required>`)}${field("Perfil", `<select name="role" ${user.id === state.user.id ? "disabled" : ""}>${options(["PROFESSOR", "TI", "ADMINISTRADOR"], user.role)}</select>`)}<button class="btn primary" type="submit">Salvar alterações</button></div></form>`,
+          `<h3>Editar usuário</h3><form id="editUserForm"><div class="login-actions">${field("Nome completo", `<input name="name" value="${h(user.name)}" maxlength="200" required>`)}${field("E-mail", `<input name="email" type="email" value="${h(user.email)}" maxlength="200" required>`)}${field("Perfil", `<select name="role" ${user.id === state.user.id || user.role === "GERENTE" ? "disabled" : ""}>${options(user.role === "GERENTE" ? ["GERENTE"] : ["PROFESSOR", "TI", "ADMINISTRADOR"], user.role)}</select>`)}<button class="btn primary" type="submit">Salvar alterações</button></div></form>`,
         );
         $("#editUserForm").onsubmit = action(async (e) => {
           const body = formValue(e.currentTarget);

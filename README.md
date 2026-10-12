@@ -191,3 +191,13 @@ Para publicar esta atualização, faça o deploy do backend `app-monitor` primei
 Na liberação de um novo agendamento aprovado, escolha uma aula anterior do mesmo professor em **Reutilizar aparelhos de uma aula anterior** e clique **Puxar aparelhos**. São selecionados apenas aparelhos disponíveis e dentro das quantidades aprovadas. Complete ou desmarque a seleção conforme necessário. Para aumentar a quantidade aprovada, edite o agendamento e aprove novamente; após a liberação, use o pedido de extras. O novo empréstimo inicia sem alunos associados e sem marcações de uso da aula anterior.
 
 O professor pode marcar **Não usei** ao lado de um aparelho. Essa opção limpa o nome associado, pode ser desmarcada durante a aula e permite enviar a devolução sem um aluno naquele item. O relatório registra a opção. Todos os aparelhos, usados ou não, continuam sujeitos à devolução e conferência.
+
+### Administrador simplificado e gerentes
+
+O administrador acompanha agendamentos, aprova pedidos, gerencia usuários comuns, importa e exporta o inventário. Não cria/edita agendamentos, não libera/confere aparelhos, não assina como TI, não cadastra/edita/exclui dispositivos e não altera a ativação de contas. TI mantém suas operações. Professor mantém o fluxo das aulas. A exportação do inventário gera CSV com separador `;`, disponível para TI, administrador e gerente; abre no Excel e LibreOffice.
+
+Gerentes têm as funções completas, incluindo ativação de contas. Não aparecem na lista de usuários dos outros perfis, não podem ser editados nem ter senha redefinida por administradores comuns e não são uma opção no cadastro público ou administrativo. Seus atos continuam registrados na auditoria.
+
+Para ativar os gerentes nas contas já existentes, configure **MANAGER_EMAILS** no Environment do backend Render `app-monitor`: os e-mails exatos, separados por vírgula, sem senhas. Todas as contas indicadas devem existir e estar ativas. O próximo início promove essas contas em uma transação e preserva suas senhas e dados. A marcação é persistente; retirar o e-mail dessa configuração não revoga uma promoção anterior. Se alterar o e-mail de um gerente, atualize também esta configuração antes do próximo deploy. Não configure essa variável no frontend nem no Git.
+
+Publique primeiro o backend com essa configuração e depois o Static Site. Saia e entre novamente para visualizar o perfil Gerente. Contas não encontradas impedem a nova versão de iniciar, evitando uma ativação parcial.

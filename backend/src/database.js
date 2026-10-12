@@ -44,6 +44,15 @@ export function openDatabase(path) {
   db.exec(schema);
   if (
     !db
+      .prepare("PRAGMA table_info(users)")
+      .all()
+      .some((c) => c.name === "is_manager")
+  )
+    db.exec(
+      "ALTER TABLE users ADD COLUMN is_manager INTEGER NOT NULL DEFAULT 0 CHECK(is_manager IN (0,1))",
+    );
+  if (
+    !db
       .prepare("PRAGMA table_info(loan_items)")
       .all()
       .some((c) => c.name === "not_used")

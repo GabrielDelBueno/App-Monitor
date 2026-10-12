@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { createApp } from "../backend/src/server.js";
+import { createApp, provisionManagers } from "../backend/src/server.js";
 import { createUser } from "../backend/src/database.js";
 const password = "Account-test-password-123!";
 async function fixture(options = {}) {
@@ -276,9 +276,116 @@ test("autocadastro exige nome completo, impede perfis privilegiados e mantém ed
     );
     assert.equal(
       (await admin(`/api/users/${id}`, "PATCH", { active: false })).status,
+      403,
+    );
+    assert.equal((await publicClient("/api/me")).status, 200);
+  } finally {
+    await f.close();
+  }
+});
+test("administrador simplificado não opera aparelhos nem altera gerentes", async () => {
+  const f = await fixture();
+  try {
+    const manager = createUser(f.db, {
+      name: "Gerente",
+      email: "manager@roles.local",
+      password,
+      role: "ADMINISTRADOR",
+    });
+    f.db.prepare("UPDATE users SET is_manager=1 WHERE id=?").run(manager.id);
+    const user = createUser(f.db, {
+      name: "Admin",
+      email: "admin@roles.local",
+      password,
+      role: "ADMINISTRADOR",
+    });
+    const admin = f.browser(),
+      root = f.browser();
+    await admin("/api/login", "POST", { email: user.email, password });
+    assert.equal(
+      (await root("/api/login", "POST", { email: manager.email, password }))
+        .data.role,
+      "GERENTE",
+    );
+    assert.ok(
+      !(await admin("/api/users")).data.some((u) => u.id === manager.id),
+    );
+    assert.ok((await root("/api/users")).data.some((u) => u.id === manager.id));
+    for (const [url, method, body] of [
+      ["/api/devices", "POST", {}],
+      ["/api/devices/unknown", "PATCH", {}],
+      ["/api/devices/unknown", "DELETE"],
+      ["/api/appointments", "POST", {}],
+      ["/api/appointments/unknown", "PATCH", {}],
+      ["/api/loans", "POST", {}],
+      [`/api/users/${manager.id}`, "PATCH", { name: "Ataque" }],
+      [`/api/users/${manager.id}/password`, "POST", {}],
+      [`/api/users/${user.id}`, "PATCH", { active: false }],
+    ])
+      assert.equal((await admin(url, method, body)).status, 403, url);
+    assert.equal(
+      (
+        await admin("/api/users", "POST", {
+          name: "Outro gerente",
+          email: "invalid@roles.local",
+          role: "GERENTE",
+        })
+      ).status,
+      400,
+    );
+    const device = await root("/api/devices", "POST", {
+      number: "=1+1",
+      qr: "ROLE-QR",
+      type: "TABLET",
+      status: "BOM_ESTADO",
+    });
+    assert.equal(device.status, 201);
+    assert.equal((await admin("/api/devices")).status, 200);
+    assert.equal(
+      (
+        await root(`/api/devices/${device.data.id}`, "PATCH", {
+          status: "CONSERVADO",
+        })
+      ).status,
       200,
     );
-    assert.equal((await publicClient("/api/me")).status, 401);
+  } finally {
+    await f.close();
+  }
+});
+
+test("ativação de gerentes exige contas existentes e é atômica e repetível", async () => {
+  const f = await fixture();
+  try {
+    const user = createUser(f.db, {
+      name: "Gestor teste",
+      email: "manager-provision@local.test",
+      password,
+      role: "TI",
+    });
+    await assert.rejects(() =>
+      provisionManagers(f.db, user.email + ",missing@local.test"),
+    );
+    assert.equal(
+      f.db.prepare("SELECT is_manager FROM users WHERE id=?").get(user.id)
+        .is_manager,
+      0,
+    );
+    await provisionManagers(f.db, user.email);
+    await provisionManagers(f.db, user.email);
+    assert.equal(
+      f.db.prepare("SELECT is_manager FROM users WHERE id=?").get(user.id)
+        .is_manager,
+      1,
+    );
+    assert.equal(
+      f.db
+        .prepare(
+          "SELECT COUNT(*) AS n FROM audit WHERE action='ATIVAR_GERENTE'",
+        )
+        .get().n,
+      1,
+    );
   } finally {
     await f.close();
   }

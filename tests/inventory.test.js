@@ -156,7 +156,7 @@ test("importação autenticada: prévia, enriquecimento, preservação de QR, re
         status: "CONSERVADO",
         notes: "Não sobrescrever",
       },
-      admin,
+      await login("import-ti@test.local"),
     );
     assert.equal(existing.status, 201);
     const second = {
@@ -206,7 +206,10 @@ test("importação autenticada: prévia, enriquecimento, preservação de QR, re
       base + "/api/devices/" + existing.data.id,
       {
         method: "PATCH",
-        headers: { "Content-Type": "application/json", Cookie: admin },
+        headers: {
+          "Content-Type": "application/json",
+          Cookie: await login("import-ti@test.local"),
+        },
         body: JSON.stringify({
           status: "CONSERVADO",
           notes: "Não sobrescrever",

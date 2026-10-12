@@ -63,6 +63,9 @@ async function exercise(page, source, expected) {
     password: "Test-password-123!",
     role: "ADMINISTRADOR",
   });
+  await db
+    .prepare("UPDATE users SET is_manager=1 WHERE email=?")
+    .run("admin-inventory@test.local");
   const server = app.listen(0, "127.0.0.1");
   await new Promise((resolve) => server.once("listening", resolve));
   const base = `http://127.0.0.1:${server.address().port}`;
