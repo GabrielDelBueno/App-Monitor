@@ -3,6 +3,7 @@
     "qr_code",
     "code_128",
     "code_39",
+    "code_93",
     "ean_13",
     "ean_8",
     "upc_a",
@@ -15,8 +16,8 @@
       audio: false,
       video: {
         facingMode: { ideal: "environment" },
-        width: { ideal: 1280 },
-        height: { ideal: 720 },
+        width: { ideal: 1920 },
+        height: { ideal: 1080 },
         frameRate: { ideal: 24, max: 30 },
       },
     });
@@ -33,9 +34,18 @@
         if (video.srcObject === stream) video.srcObject = null;
       },
     };
+    let lastRejected = "",
+      rejectedAt = 0;
     const deliver = (text) => {
-      if (!stopped && video.isConnected && onResult(text) === true)
+      if (stopped || !video.isConnected) return false;
+      if (text === lastRejected && Date.now() - rejectedAt < 1500) return false;
+      if (onResult(text) === true) {
         controls.stop();
+        return true;
+      }
+      lastRejected = text;
+      rejectedAt = Date.now();
+      return false;
     };
     try {
       if (!video.isConnected) {
@@ -87,11 +97,13 @@
         }
         const library = window.ZXingBrowser;
         if (!library) throw Error("Leitor indisponível.");
-        fallback = new library.BrowserMultiFormatReader();
+        // ZXing DecodeHintType.TRY_HARDER = 3: sample more rows on small factory labels.
+        fallback = new library.BrowserMultiFormatReader(new Map([[3, true]]));
         fallback.possibleFormats = [
           "QR_CODE",
           "CODE_128",
           "CODE_39",
+          "CODE_93",
           "EAN_13",
           "EAN_8",
           "UPC_A",
@@ -104,17 +116,30 @@
       try {
         if (window.BarcodeDetector) {
           const supported = await BarcodeDetector.getSupportedFormats();
-          if (formats.every((format) => supported.includes(format)))
-            detector = new BarcodeDetector({ formats });
+          const nativeFormats = formats.filter((format) =>
+            supported.includes(format),
+          );
+          if (nativeFormats.length)
+            detector = new BarcodeDetector({ formats: nativeFormats });
         }
       } catch {
         /* Use the compatible reader if native detection is unavailable. */
       }
-      if (!detector) useFallback();
+      useFallback();
       if (!video.isConnected) {
         controls.stop();
         return controls;
       }
+      const strip = document.createElement("canvas"),
+        rotated = document.createElement("canvas");
+      let frame = 0;
+      const decodeFallback = (target) => {
+        try {
+          return deliver(fallback.decodeFromCanvas(target).getText());
+        } catch {
+          return false;
+        }
+      };
       const read = async () => {
         if (stopped || !video.isConnected) {
           controls.stop();
@@ -123,30 +148,48 @@
         if (video.readyState >= 2) {
           const target = captureTarget();
           if (target) {
+            // First read the horizontal band on the red aiming line, away from nearby IMEI labels.
+            strip.width = target.width;
+            strip.height = Math.max(1, Math.round(target.height * 0.25));
+            strip
+              .getContext("2d")
+              .drawImage(
+                target,
+                0,
+                (target.height - strip.height) / 2,
+                strip.width,
+                strip.height,
+                0,
+                0,
+                strip.width,
+                strip.height,
+              );
             if (detector) {
               try {
-                const results = await detector.detect(target);
-                if (results[0]?.rawValue) deliver(results[0].rawValue);
+                const results = await detector.detect(strip);
+                for (const result of results)
+                  if (result.rawValue && deliver(result.rawValue)) break;
               } catch {
                 detector = null;
-                try {
-                  useFallback();
-                } catch {
-                  controls.stop();
-                }
               }
-            } else {
-              let result;
-              try {
-                result = fallback.decodeFromCanvas(target);
-              } catch {
-                // No complete readable code in the target yet; try the next frame.
+            }
+            if (!stopped) decodeFallback(strip);
+            if (!stopped) {
+              // Alternate QR/full-frame decoding and rotated barcode decoding to bound work per frame.
+              if (frame++ % 2 === 0) decodeFallback(target);
+              else {
+                rotated.width = target.height;
+                rotated.height = target.width;
+                const ctx = rotated.getContext("2d");
+                ctx.translate(rotated.width / 2, rotated.height / 2);
+                ctx.rotate(Math.PI / 2);
+                ctx.drawImage(target, -target.width / 2, -target.height / 2);
+                decodeFallback(rotated);
               }
-              if (result) deliver(result.getText());
             }
           }
         }
-        if (!stopped) timer = setTimeout(read, detector ? 100 : 120);
+        if (!stopped) timer = setTimeout(read, 120);
       };
       timer = setTimeout(read, 0);
       return controls;

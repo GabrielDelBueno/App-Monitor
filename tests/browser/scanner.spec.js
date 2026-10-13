@@ -1,5 +1,11 @@
 import { test, expect } from "@playwright/test";
 import QRCode from "qrcode";
+import { readFileSync } from "node:fs";
+const barcodeFixture = (name) =>
+  "data:image/png;base64," +
+  readFileSync(new URL(`./fixtures/${name}.png`, import.meta.url)).toString(
+    "base64",
+  );
 
 function code39(text) {
   const patterns = {
@@ -27,13 +33,20 @@ function code39(text) {
   );
 }
 
-for (const [label, source, value] of [
+for (const [label, source, value, rotated = false] of [
   [
     "QR Code",
     await QRCode.toDataURL("MONITOR-123", { width: 320, margin: 4 }),
     "MONITOR-123",
   ],
   ["código de barras Code 39", code39("ABC"), "ABC"],
+  ["número de série Code 128", barcodeFixture("code128"), "SERIAL-TEST-001"],
+  [
+    "número de série Code 93 girado",
+    barcodeFixture("code93"),
+    "SERIAL-TEST-001",
+    true,
+  ],
 ]) {
   test(`lê ${label} de uma imagem real pela câmera e libera a câmera`, async ({
     page,
@@ -43,7 +56,7 @@ for (const [label, source, value] of [
       () => typeof window.startMonitorScanner === "function",
     );
     await page.evaluate(
-      async ({ source }) => {
+      async ({ source, rotated }) => {
         window.BarcodeDetector = undefined;
         const canvas = document.createElement("canvas");
         canvas.width = 1280;
@@ -54,11 +67,9 @@ for (const [label, source, value] of [
         const image = new Image();
         image.src = source;
         await image.decode();
-        context.drawImage(
-          image,
-          (1280 - image.width) / 2,
-          (720 - image.height) / 2,
-        );
+        context.translate(640, 360);
+        if (rotated) context.rotate(Math.PI / 2);
+        context.drawImage(image, -image.width / 2, -image.height / 2);
         const stream = canvas.captureStream(24);
         window.scannerTrack = stream.getVideoTracks()[0];
         navigator.mediaDevices.getUserMedia = async () => stream;
@@ -70,7 +81,7 @@ for (const [label, source, value] of [
           return true;
         });
       },
-      { source },
+      { source, rotated },
     );
     await expect
       .poll(() => page.evaluate(() => window.scannerResult))
