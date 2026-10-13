@@ -178,16 +178,14 @@ test("ciclo escolar completo pelas telas e layout móvel", async ({ page }) => {
     page.getByRole("heading", {
       name: "Complete suas pendências para continuar",
     }),
-  ).toBeVisible();
-  await page.getByRole("button", { name: "Ver relatório" }).click();
-  await sign(page);
+  ).toHaveCount(0);
   await page.getByRole("button", { name: "Histórico", exact: true }).click();
   await page.getByRole("button", { name: "Visualizar / PDF" }).click();
   await expect(page.locator("#reportDocument")).toContainText("Concluído");
   await expect(page.locator("#reportDocument")).toContainText("Não usei");
-  await expect(page.locator(".signature-image")).toHaveCount(3);
+  await expect(page.locator(".signature-image")).toHaveCount(2);
   await expect(page.locator("#reportDocument")).toContainText(
-    "Adiantamento da assinatura",
+    "Registrada no agendamento",
   );
   await page.emulateMedia({ media: "print" });
   await expect(page.locator("#reportDocument")).toBeVisible();

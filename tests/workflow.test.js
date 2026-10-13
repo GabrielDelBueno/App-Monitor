@@ -299,6 +299,10 @@ test("agendamento, isolamento e aprovação", async () => {
   );
 });
 test("liberação atômica, limites e aparelhos indisponíveis", async () => {
+  // This scenario exercises the optional, no-advance-signature flow.
+  await db
+    .prepare("DELETE FROM advance_signatures WHERE appointment_id=?")
+    .run(appointment.id);
   const path = "/api/loans",
     body = {
       appointment_id: appointment.id,
@@ -816,6 +820,59 @@ test("corrige cadastro antigo do modelo Chromebook ao reabrir o banco", async ()
   assert.equal(actual.qr, "QR-MIGRATION");
   assert.equal(actual.serial_number, "SERIAL-MIGRATION");
   await reopened.close();
+});
+test("assinatura antecipada regulariza pendências antigas sem sobrescrever assinaturas", async () => {
+  const originalDate = "2026-01-01T10:00:00.000Z";
+  const previous = await db
+    .prepare("SELECT * FROM signatures WHERE loan_id=? AND type='PROFESSOR'")
+    .get(loan.id);
+  await db
+    .prepare(
+      "INSERT INTO advance_signatures(appointment_id,user_id,image,signed_at) VALUES(?,?,?,?)",
+    )
+    .run(appointment.id, teacher.id, signature, originalDate);
+  await db
+    .prepare(
+      "INSERT INTO loans(id,appointment_id,teacher_id,ti_id,class_name,departed_at,status) SELECT 'legacy-advance',appointment_id,teacher_id,ti_id,class_name,departed_at,'AGUARDANDO_ASSINATURAS' FROM loans WHERE id=?",
+    )
+    .run(loan.id);
+  await db
+    .prepare(
+      "INSERT INTO signatures(id,loan_id,user_id,type,image,signed_at) SELECT 'legacy-ti','legacy-advance',user_id,type,image,signed_at FROM signatures WHERE loan_id=? AND type='TI'",
+    )
+    .run(loan.id);
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const reopened = process.env.TEST_DATABASE_URL
+      ? await openPostgres(process.env.TEST_DATABASE_URL, {
+          localTest: process.env.TEST_DATABASE_TLS !== "true",
+        })
+      : openDatabase(dbPath);
+    const copied = await reopened
+      .prepare(
+        "SELECT * FROM signatures WHERE loan_id='legacy-advance' AND type='PROFESSOR'",
+      )
+      .get();
+    assert.equal(copied.image, signature);
+    assert.equal(copied.signed_at, originalDate);
+    assert.equal(copied.user_id, teacher.id);
+    assert.equal(
+      (
+        await reopened
+          .prepare("SELECT status FROM loans WHERE id='legacy-advance'")
+          .get()
+      ).status,
+      "CONCLUIDA",
+    );
+    assert.deepEqual(
+      await reopened
+        .prepare(
+          "SELECT * FROM signatures WHERE loan_id=? AND type='PROFESSOR'",
+        )
+        .get(loan.id),
+      previous,
+    );
+    await reopened.close();
+  }
 });
 test("senha, desativação e logout encerram acesso", async () => {
   assert.equal(

@@ -361,7 +361,7 @@ function pendingPage(pending) {
 }
 function advanceSignature(a) {
   modal(
-    `<h2>Adiantamento da assinatura</h2><p>Agendamento: ${h(a.class_name)} • ${date(a.date)} ${h(a.time)}</p><p><b>Preencha os nomes dos alunos que estiverem utilizando os dispositivos após a liberação.</b></p><p>Esta antecipação registra sua ciência do pedido. Não confirma uma devolução futura nem substitui a assinatura do relatório final. Alterar o agendamento invalida esta assinatura.</p>${a.advance_signature ? `<img class="signature-image" src="${h(a.advance_signature.image)}" alt="Assinatura antecipada"><p>${fmt(a.advance_signature.signed_at)}</p>` : `<canvas id="advanceCanvas" class="signature-pad" aria-label="Assinatura antecipada"></canvas>${button("Limpar", 'id="clearAdvance"')}${button("Confirmar antecipação", 'id="saveAdvance"', "primary")}`}`,
+    `<h2>Adiantamento da assinatura</h2><p>Agendamento: ${h(a.class_name)} • ${date(a.date)} ${h(a.time)}</p><p><b>Preencha os nomes dos alunos que estiverem utilizando os dispositivos após a liberação.</b></p><p>Esta será sua única assinatura neste empréstimo e aparecerá no relatório com a data do agendamento. Você não precisará assinar novamente após a devolução. A conferência de retorno será registrada pelo TI. Alterar o agendamento invalida esta assinatura.</p>${a.advance_signature ? `<img class="signature-image" src="${h(a.advance_signature.image)}" alt="Assinatura antecipada"><p>${fmt(a.advance_signature.signed_at)}</p>` : `<canvas id="advanceCanvas" class="signature-pad" aria-label="Assinatura antecipada"></canvas>${button("Limpar", 'id="clearAdvance"')}${button("Confirmar antecipação", 'id="saveAdvance"', "primary")}`}`,
     true,
   );
   if (a.advance_signature) return;
@@ -1025,13 +1025,16 @@ function reportModal(l) {
         (i) =>
           `<tr><td>${h(i.number)}</td><td>${h(i.not_used ? "Não usei" : i.student)}</td><td>${h(labels[i.departure_status])}</td><td>${h(labels[i.return_status] || "—")}</td><td class="wrap-cell">${h(i.ti_comment)}</td></tr>`,
       ),
-    )}${advance ? `<div class="notice"><h3>Adiantamento da assinatura</h3><p>Registrado no agendamento em ${fmt(advance.signed_at)}. Ciência do pedido; não substitui a assinatura final de devolução.</p><img class="signature-image" src="${h(advance.image)}" alt="Adiantamento da assinatura"></div>` : ""}<h3>Relato do professor</h3><p class="wrap-cell">${h(l.report)}</p><div class="signature-grid">${[
+    )}<h3>Relato do professor</h3><p class="wrap-cell">${h(l.report)}</p><div class="signature-grid">${[
       "PROFESSOR",
       "TI",
     ]
       .map((type) => {
-        const s = l.signatures.find((s) => s.type === type);
-        return `<div class="signature-card"><b>Assinatura ${labels[type]}</b>${s ? `<img class="signature-image" src="${h(s.image)}" alt="Assinatura ${labels[type]}"><small>${h(s.name)} • ${fmt(s.signed_at)}</small>` : '<p class="muted">Pendente</p>'}</div>`;
+        const s =
+          type === "PROFESSOR" && advance
+            ? { ...advance, name: l.teacher.name }
+            : l.signatures.find((s) => s.type === type);
+        return `<div class="signature-card"><b>Assinatura ${labels[type]}</b>${s ? `<img class="signature-image" src="${h(s.image)}" alt="Assinatura ${labels[type]}"><small>${h(s.name)} • ${fmt(s.signed_at)}${type === "PROFESSOR" && advance ? " • Registrada no agendamento" : ""}</small>` : '<p class="muted">Pendente</p>'}</div>`;
       })
       .join(
         "",

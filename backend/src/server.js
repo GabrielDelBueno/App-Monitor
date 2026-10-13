@@ -1495,13 +1495,38 @@ export function createApp({
         l.id,
       );
       await resolveNotifications(l.id);
-      await notify(
+      const advance = await get(
+        "SELECT * FROM advance_signatures WHERE appointment_id=? AND user_id=?",
+        l.appointment_id,
         l.teacher_id,
-        "Relatório para assinatura",
-        "A devolução foi conferida. Confira e assine o relatório.",
-        "reports",
-        l.id,
       );
+      if (advance) {
+        await run(
+          "INSERT INTO signatures(id,loan_id,user_id,type,image,signed_at) VALUES(?,?,?,'PROFESSOR',?,?) ON CONFLICT(loan_id,type) DO NOTHING",
+          "advance:" + l.id,
+          l.id,
+          l.teacher_id,
+          advance.image,
+          advance.signed_at,
+        );
+        await audit(req.user, "APROVEITAR_ASSINATURA_AGENDAMENTO", l.id, {
+          signed_at: advance.signed_at,
+        });
+        await notifyStaff(
+          "Assinatura de TI pendente",
+          "A assinatura do professor já foi registrada no agendamento. Confira e assine como TI.",
+          "reports",
+          l.id,
+        );
+      } else {
+        await notify(
+          l.teacher_id,
+          "Relatório para assinatura",
+          "A devolução foi conferida. Confira e assine o relatório.",
+          "reports",
+          l.id,
+        );
+      }
       await audit(req.user, "CONFERIR_RETORNO", l.id);
     });
     res.json(await fullLoan(await loan(l.id)));

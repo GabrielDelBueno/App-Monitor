@@ -32,6 +32,11 @@ export const schema = `
  CREATE TABLE IF NOT EXISTS audit(id TEXT PRIMARY KEY,user_id TEXT REFERENCES users(id),action TEXT NOT NULL,entity_id TEXT,details TEXT NOT NULL,created_at TEXT NOT NULL);
  CREATE TABLE IF NOT EXISTS oauth_flows(state_hash TEXT PRIMARY KEY,browser_hash TEXT NOT NULL,code_verifier TEXT NOT NULL,nonce TEXT NOT NULL,redirect_uri TEXT NOT NULL,mode TEXT NOT NULL,user_id TEXT REFERENCES users(id),session_hash TEXT,expires_at INTEGER NOT NULL);
  CREATE TABLE IF NOT EXISTS external_identities(id TEXT PRIMARY KEY,user_id TEXT NOT NULL REFERENCES users(id),issuer TEXT NOT NULL,subject_hash TEXT NOT NULL,created_at TEXT NOT NULL,UNIQUE(issuer,subject_hash),UNIQUE(issuer,user_id));
+ INSERT INTO signatures(id,loan_id,user_id,type,image,signed_at)
+ SELECT 'advance:' || l.id,l.id,a.user_id,'PROFESSOR',a.image,a.signed_at FROM loans l JOIN advance_signatures a ON a.appointment_id=l.appointment_id AND a.user_id=l.teacher_id
+ WHERE l.status IN ('AGUARDANDO_ASSINATURAS','CONCLUIDA') AND NOT EXISTS(SELECT 1 FROM signatures s WHERE s.loan_id=l.id AND s.type='PROFESSOR');
+ UPDATE loans SET status='CONCLUIDA' WHERE status='AGUARDANDO_ASSINATURAS' AND (SELECT COUNT(*) FROM signatures s WHERE s.loan_id=loans.id)=2;
+ UPDATE appointments SET status='CONCLUIDO' WHERE id IN (SELECT appointment_id FROM loans WHERE status='CONCLUIDA');
  CREATE INDEX IF NOT EXISTS loan_items_device ON loan_items(device_id);
  CREATE INDEX IF NOT EXISTS loans_teacher ON loans(teacher_id,status);
  CREATE INDEX IF NOT EXISTS notifications_user ON notifications(user_id,status);
