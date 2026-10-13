@@ -74,6 +74,9 @@ test("ciclo escolar completo pelas telas e layout móvel", async ({ page }) => {
     await page
       .getByLabel("Código QR ou código de barras", { exact: true })
       .fill(`QR-${n}`);
+    await page
+      .getByLabel("Número de série", { exact: true })
+      .fill(`SERIAL-${n}`);
     if (n === 2)
       await page.getByLabel("Tipo", { exact: true }).selectOption("NOTEBOOK");
     await page.getByRole("button", { name: "Salvar dispositivo" }).click();
@@ -81,6 +84,10 @@ test("ciclo escolar completo pelas telas e layout móvel", async ({ page }) => {
   }
   await page.getByRole("button", { name: "QR", exact: true }).first().click();
   await expect(page.locator(".qr-label img")).toBeVisible();
+  await expect(page.locator(".qr-label")).toContainText(
+    "Número de série: SERIAL-1",
+  );
+  await expect(page.locator(".qr-label")).not.toContainText("QR-1");
   expect(
     await page.evaluate(async () => {
       const reader = new ZXingBrowser.BrowserQRCodeReader();

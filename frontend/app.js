@@ -1164,7 +1164,7 @@ function bindTables() {
         const d = state.devices.find((d) => d.id === b.dataset.qr);
         const { image: url } = await api(`/devices/${d.id}/qr`);
         modal(
-          `<h3>Etiqueta de patrimônio</h3><div id="reportDocument" class="qr-label"><h2>APP Monitor</h2><img src="${url}" alt="QR Code do dispositivo ${h(d.number)}"><h3>${h(d.number)}</h3><p>${h(d.qr)}</p></div>${button("Imprimir etiqueta", 'id="printLabel"')}`,
+          `<h3>Etiqueta de patrimônio</h3><div id="reportDocument" class="qr-label"><h2>APP Monitor</h2><img src="${url}" alt="QR Code do dispositivo ${h(d.number)}"><h3>${h(d.internal_id || d.number)}</h3><p><b>Número de série:</b> ${h(d.serial_number || "Não informado")}</p></div>${button("Imprimir etiqueta", 'id="printLabel"')}`,
         );
         $("#printLabel").onclick = () => window.print();
       })),

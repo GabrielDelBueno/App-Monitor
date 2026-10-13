@@ -361,10 +361,20 @@ test("liberação atômica, limites e aparelhos indisponíveis", async () => {
   );
 });
 test("pedido de extras e liberação única", async () => {
+  assert.ok(
+    (await prof("/api/notifications")).data.some(
+      (n) => n.entity_id === loan.id && n.title === "Dispositivos liberados",
+    ),
+  );
   assert.equal((await prof("/api/me")).data.blocked, true);
   await prof(`/api/loans/${loan.id}/students`, "PATCH", {
     items: loan.items.map((i) => ({ id: i.id, student: "Aluno teste" })),
   });
+  assert.ok(
+    !(await prof("/api/notifications")).data.some(
+      (n) => n.entity_id === loan.id && n.title === "Dispositivos liberados",
+    ),
+  );
   assert.equal(
     (await prof(`/api/loans/${loan.id}/extras`, "POST", { quantity: 6 }))
       .status,
@@ -514,6 +524,26 @@ test("associação, devolução, conferência e desbloqueio por assinatura", asy
   );
 });
 test("notificações, auditoria e dados persistem ao reabrir o banco", async () => {
+  await db
+    .prepare("UPDATE notifications SET status='PENDENTE' WHERE entity_id=?")
+    .run(loan.id);
+  assert.ok(
+    !(await prof("/api/notifications")).data.some(
+      (n) => n.entity_id === loan.id,
+    ),
+  );
+  await db
+    .prepare("INSERT INTO notifications VALUES(?,?,?,?,?,?,?,?)")
+    .run(
+      "test-open-notification",
+      teacher.id,
+      "Aviso de teste",
+      "Mensagem ainda não lida",
+      "dashboard",
+      null,
+      "PENDENTE",
+      new Date().toISOString(),
+    );
   const n = (await prof("/api/notifications")).data.find(
     (n) => n.status === "PENDENTE",
   );

@@ -1526,14 +1526,32 @@ export function createApp({
     });
     res.json(await fullLoan(await loan(l.id)));
   });
-  app.get("/api/notifications", async (req, res) =>
+  app.get("/api/notifications", async (req, res) => {
+    // Reconcile legacy alerts too: their task may have finished before alerts were archived.
+    await run(
+      `UPDATE notifications SET status='CONCLUIDA' WHERE user_id=? AND status='PENDENTE' AND (
+      (page='appointments' AND EXISTS(SELECT 1 FROM appointments a WHERE a.id=notifications.entity_id AND (
+        a.status IN ('CANCELADO','CONCLUIDO','EM_USO') OR
+        (notifications.title IN ('Novo agendamento','Agendamento editado') AND a.status<>'PENDENTE')
+      ))) OR
+      (page IN ('loans','reports') AND EXISTS(SELECT 1 FROM loans l WHERE l.id=notifications.entity_id AND (
+        l.status='CONCLUIDA' OR
+        (notifications.title IN ('Dispositivos liberados','Extras liberados') AND (l.status<>'EM_USO' OR NOT EXISTS(SELECT 1 FROM loan_items i WHERE i.loan_id=l.id AND trim(i.student)='' AND i.not_used=0))) OR
+        (notifications.title='Conferência de retorno' AND l.status<>'AGUARDANDO_DEVOLUCAO') OR
+        (notifications.title='Relatório para assinatura' AND EXISTS(SELECT 1 FROM signatures s WHERE s.loan_id=l.id AND s.type='PROFESSOR')) OR
+        (notifications.title='Assinatura de TI pendente' AND EXISTS(SELECT 1 FROM signatures s WHERE s.loan_id=l.id AND s.type='TI')) OR
+        (notifications.title='Dispositivos extras' AND (l.status<>'EM_USO' OR EXISTS(SELECT 1 FROM appointments a WHERE a.id=l.appointment_id AND (a.extras=0 OR (SELECT COUNT(*) FROM loan_items i WHERE i.loan_id=l.id)>=a.quantity+a.extras))))
+      )))
+    )`,
+      req.user.id,
+    );
     res.json(
       await all(
         "SELECT * FROM notifications WHERE user_id=? AND status='PENDENTE' ORDER BY created_at DESC LIMIT 100",
         req.user.id,
       ),
-    ),
-  );
+    );
+  });
   app.patch("/api/notifications/:id", async (req, res) => {
     const d = z
       .object({
