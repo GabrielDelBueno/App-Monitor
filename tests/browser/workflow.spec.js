@@ -101,7 +101,23 @@ test("ciclo escolar completo pelas telas e layout móvel", async ({ page }) => {
   await page.getByLabel("Quantidade — Tablet", { exact: true }).fill("1");
   await page.getByLabel("Quantidade — Notebook", { exact: true }).fill("1");
   await expect(page.locator("#requestTotal")).toContainText("Total: 2 / 25");
+  await page.getByLabel("Fazer adiantamento da assinatura após salvar").check();
   await page.getByRole("button", { name: "Salvar agendamento" }).click();
+  await expect(
+    page.getByRole("heading", {
+      name: "Adiantamento da assinatura",
+      exact: true,
+    }),
+  ).toBeVisible();
+  const advance = page.locator("#advanceCanvas");
+  await advance.scrollIntoViewIfNeeded();
+  const box = await advance.boundingBox();
+  await page.mouse.move(box.x + 20, box.y + 30);
+  await page.mouse.down();
+  await page.mouse.move(box.x + 110, box.y + 55, { steps: 12 });
+  await page.mouse.up();
+  await page.getByRole("button", { name: "Confirmar antecipação" }).click();
+
   await expect(page.locator("#modal")).toHaveCount(0);
   await logout(page);
   await login(page, "ti@browser.local");
@@ -142,16 +158,21 @@ test("ciclo escolar completo pelas telas e layout móvel", async ({ page }) => {
   await sign(page);
   await logout(page);
   await login(page, "prof@browser.local");
-  await page
-    .getByRole("button", { name: "Relatórios e assinaturas", exact: true })
-    .click();
+  await expect(
+    page.getByRole("heading", {
+      name: "Complete suas pendências para continuar",
+    }),
+  ).toBeVisible();
   await page.getByRole("button", { name: "Ver relatório" }).click();
   await sign(page);
   await page.getByRole("button", { name: "Histórico", exact: true }).click();
   await page.getByRole("button", { name: "Visualizar / PDF" }).click();
   await expect(page.locator("#reportDocument")).toContainText("Concluído");
   await expect(page.locator("#reportDocument")).toContainText("Não usei");
-  await expect(page.locator(".signature-image")).toHaveCount(2);
+  await expect(page.locator(".signature-image")).toHaveCount(3);
+  await expect(page.locator("#reportDocument")).toContainText(
+    "Adiantamento da assinatura",
+  );
   await page.emulateMedia({ media: "print" });
   await expect(page.locator("#reportDocument")).toBeVisible();
   await page.emulateMedia({ media: "screen" });
@@ -188,6 +209,15 @@ test("ciclo escolar completo pelas telas e layout móvel", async ({ page }) => {
     page.getByLabel("Não usei", { exact: true }).nth(1),
   ).not.toBeChecked();
   await page.getByRole("button", { name: "Fechar", exact: true }).click();
+  await page.getByRole("button", { name: "Abrir movimentação" }).click();
+  await page.getByLabel("Aluno do dispositivo TB-1").fill("Aluno nova aula");
+  await page.getByLabel("Não usei", { exact: true }).nth(1).check();
+  await page.getByRole("button", { name: "Salvar associações" }).click();
+  await expect(
+    page.getByRole("heading", {
+      name: "Complete suas pendências para continuar",
+    }),
+  ).toHaveCount(0);
   await page.setViewportSize({ width: 390, height: 844 });
   await page.getByRole("button", { name: "Visão geral", exact: true }).click();
   await expect(page.locator(".hero")).toBeVisible();

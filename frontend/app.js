@@ -314,11 +314,90 @@ function navItems() {
     ...(manages() ? [["audit", "≡", "Auditoria"]] : []),
   ];
 }
+function teacherPending() {
+  if (state.user?.role !== "PROFESSOR") return [];
+  return state.loans.filter(
+    (l) =>
+      l.teacher_id === state.user.id &&
+      ((l.status === "EM_USO" &&
+        l.items.some((i) => !i.not_used && !i.student.trim())) ||
+        (l.status === "AGUARDANDO_ASSINATURAS" &&
+          !l.signatures.some((s) => s.type === "PROFESSOR"))),
+  );
+}
+function pendingPage(pending) {
+  $("#app").innerHTML =
+    `<main class="main"><div class="card"><h1>Complete suas pendências para continuar</h1><p>Informe os nomes dos alunos que estão utilizando os dispositivos. Se algum aparelho não foi utilizado, marque “Não usei”. Assine também os relatórios pendentes.</p>${pending.map((l) => `<div class="loan-card"><h2>${h(l.class_name)} • ${fmt(l.departed_at)}</h2><p>${l.status === "EM_USO" ? "Faltam nomes dos alunos." : "Falta sua assinatura no relatório."}</p>${button(l.status === "EM_USO" ? "Abrir movimentação" : "Ver relatório", `data-pending="${l.id}"`, "primary")}</div>`).join("")}${button("Sair", 'id="logout"')}</div></main>`;
+  $$("[data-pending]").forEach(
+    (b) =>
+      (b.onclick = () => {
+        const l = pending.find((l) => l.id === b.dataset.pending);
+        l.status === "EM_USO" ? loanModal(l) : reportModal(l);
+      }),
+  );
+  $("#logout").onclick = action(async () => {
+    await api("/logout", { method: "POST" });
+    state.user = null;
+    closeModal();
+    login();
+  });
+}
+function advanceSignature(a) {
+  modal(
+    `<h2>Adiantamento da assinatura</h2><p>Agendamento: ${h(a.class_name)} • ${date(a.date)} ${h(a.time)}</p><p><b>Preencha os nomes dos alunos que estiverem utilizando os dispositivos após a liberação.</b></p><p>Esta antecipação registra sua ciência do pedido. Não confirma uma devolução futura nem substitui a assinatura do relatório final. Alterar o agendamento invalida esta assinatura.</p>${a.advance_signature ? `<img class="signature-image" src="${h(a.advance_signature.image)}" alt="Assinatura antecipada"><p>${fmt(a.advance_signature.signed_at)}</p>` : `<canvas id="advanceCanvas" class="signature-pad" aria-label="Assinatura antecipada"></canvas>${button("Limpar", 'id="clearAdvance"')}${button("Confirmar antecipação", 'id="saveAdvance"', "primary")}`}`,
+    true,
+  );
+  if (a.advance_signature) return;
+  const c = $("#advanceCanvas"),
+    r = c.getBoundingClientRect(),
+    scale = window.devicePixelRatio || 1;
+  c.width = Math.round(r.width * scale);
+  c.height = Math.round(r.height * scale);
+  const ctx = c.getContext("2d");
+  ctx.scale(scale, scale);
+  ctx.lineWidth = 2;
+  ctx.lineCap = "round";
+  let drawing = false,
+    signed = false;
+  const point = (e) => {
+    const rect = c.getBoundingClientRect();
+    return [e.clientX - rect.left, e.clientY - rect.top];
+  };
+  c.onpointerdown = (e) => {
+    drawing = true;
+    c.setPointerCapture(e.pointerId);
+    ctx.beginPath();
+    ctx.moveTo(...point(e));
+  };
+  c.onpointermove = (e) => {
+    if (drawing) {
+      ctx.lineTo(...point(e));
+      ctx.stroke();
+      signed = true;
+    }
+  };
+  c.onpointerup = c.onpointercancel = () => (drawing = false);
+  $("#clearAdvance").onclick = () => {
+    ctx.clearRect(0, 0, r.width, r.height);
+    signed = false;
+  };
+  $("#saveAdvance").onclick = action(async () => {
+    if (!signed) return toast("Desenhe sua assinatura.");
+    await api(`/appointments/${a.id}/advance-sign`, {
+      method: "POST",
+      body: { image: c.toDataURL("image/png") },
+    });
+    await refresh();
+    toast("Antecipação registrada.");
+  });
+}
 function render() {
   if (!state.user) return login();
   if (state.user.requiresPasswordChange) return passwordChangePage();
   stopScanner();
   closeModal();
+  const pending = teacherPending();
+  if (pending.length) return pendingPage(pending);
   const nav = navItems();
   const page = (
     {
@@ -411,7 +490,7 @@ function appointments() {
       ],
       state.appointments.map(
         (a) =>
-          `<tr><td>${date(a.date)} • ${h(a.time)}</td><td>${h(a.teacher_name)}</td><td>${h(a.class_name)}</td><td>${h(requestSummary(a))}${a.extras ? ` + ${a.extras} extras` : ""}</td><td>${status(a.status)}</td><td><div class="toolbar">${schedules() && ["PENDENTE", "APROVADO"].includes(a.status) ? button("Editar", `data-edit-appointment="${a.id}"`) + button("Cancelar", `data-cancel="${a.id}"`, "danger") : ""}${staff() && a.status === "PENDENTE" ? button("Aprovar", `data-approve="${a.id}"`, "success") : ""}${operates() && a.status === "APROVADO" ? button("Liberar", `data-release="${a.id}"`, "primary") : ""}</div></td></tr>`,
+          `<tr><td>${date(a.date)} • ${h(a.time)}</td><td>${h(a.teacher_name)}</td><td>${h(a.class_name)}</td><td>${h(requestSummary(a))}${a.extras ? ` + ${a.extras} extras` : ""}</td><td>${status(a.status)}</td><td><div class="toolbar">${schedules() && ["PENDENTE", "APROVADO"].includes(a.status) ? button("Editar", `data-edit-appointment="${a.id}"`) + button("Cancelar", `data-cancel="${a.id}"`, "danger") : ""}${a.teacher_id === state.user.id && ["PENDENTE", "APROVADO"].includes(a.status) ? button(a.advance_signature ? "Ver antecipação" : "Antecipar assinatura", `data-advance="${a.id}"`) : ""}${staff() && a.status === "PENDENTE" ? button("Aprovar", `data-approve="${a.id}"`, "success") : ""}${operates() && a.status === "APROVADO" ? button("Liberar", `data-release="${a.id}"`, "primary") : ""}</div></td></tr>`,
       ),
     )}</div>`
   );
@@ -494,20 +573,25 @@ function appointmentModal(existing) {
               .join("")}</select>`,
           )
         : ""
-    }${field("Data", `<input type="date" name="date" min="${localToday()}" max="${end.toISOString().slice(0, 10)}" value="${a.date}" required>`)}${field("Horário", `<input name="time" type="time" value="${h(a.time)}" required>`)}${field("Turma", `<input name="class_name" value="${h(a.class_name)}" maxlength="200" required>`)}</div>${deviceChoices(existing ? requestItems(a) : [], 25)}<p class="muted">Ao editar, o pedido volta para aprovação e o pedido de extras é reiniciado.</p><button class="btn primary">Salvar agendamento</button></form>`,
+    }${field("Data", `<input type="date" name="date" min="${localToday()}" max="${end.toISOString().slice(0, 10)}" value="${a.date}" required>`)}${field("Horário", `<input name="time" type="time" value="${h(a.time)}" required>`)}${field("Turma", `<input name="class_name" value="${h(a.class_name)}" maxlength="200" required>`)}</div>${deviceChoices(existing ? requestItems(a) : [], 25)}<p class="muted">Ao editar, o pedido volta para aprovação e o pedido de extras é reiniciado.</p>${state.user.role === "PROFESSOR" ? '<label><input type="checkbox" name="advance" value="yes"> Fazer adiantamento da assinatura após salvar</label><p class="muted">Lembre-se de preencher os nomes dos alunos após receber os dispositivos.</p>' : ""}<button class="btn primary">Salvar agendamento</button></form>`,
     true,
   );
   bindChoices($("#appointmentForm"), 25);
   $("#appointmentForm").onsubmit = action(async (e) => {
     const body = formValue(e.currentTarget);
     body.items = readChoices(e.currentTarget);
-    await api(existing ? `/appointments/${a.id}` : "/appointments", {
-      method: existing ? "PATCH" : "POST",
-      body,
-    });
+    const saved = await api(
+      existing ? `/appointments/${a.id}` : "/appointments",
+      {
+        method: existing ? "PATCH" : "POST",
+        body,
+      },
+    );
     closeModal();
     await refresh();
     toast("Agendamento salvo.");
+    if (body.advance === "yes" && saved.teacher_id === state.user.id)
+      advanceSignature(saved);
   });
 }
 function release() {
@@ -760,6 +844,7 @@ function loanModal(l) {
         method: "PATCH",
         body: { items: students() },
       });
+      await refresh();
       toast("Associações salvas.");
     });
   if ($("#submitReturn"))
@@ -840,6 +925,9 @@ function historyTable(list) {
   );
 }
 function reportModal(l) {
+  const advance = state.appointments.find(
+    (a) => a.id === l.appointment_id,
+  )?.advance_signature;
   const ownType = state.user.id === l.teacher_id ? "PROFESSOR" : "TI";
   const canSign =
     l.status === "AGUARDANDO_ASSINATURAS" &&
@@ -852,7 +940,7 @@ function reportModal(l) {
         (i) =>
           `<tr><td>${h(i.number)}</td><td>${h(i.not_used ? "Não usei" : i.student)}</td><td>${h(labels[i.departure_status])}</td><td>${h(labels[i.return_status] || "—")}</td><td class="wrap-cell">${h(i.ti_comment)}</td></tr>`,
       ),
-    )}<h3>Relato do professor</h3><p class="wrap-cell">${h(l.report)}</p><div class="signature-grid">${[
+    )}${advance ? `<div class="notice"><h3>Adiantamento da assinatura</h3><p>Registrado no agendamento em ${fmt(advance.signed_at)}. Ciência do pedido; não substitui a assinatura final de devolução.</p><img class="signature-image" src="${h(advance.image)}" alt="Adiantamento da assinatura"></div>` : ""}<h3>Relato do professor</h3><p class="wrap-cell">${h(l.report)}</p><div class="signature-grid">${[
       "PROFESSOR",
       "TI",
     ]
@@ -986,9 +1074,9 @@ async function scan() {
 }
 async function notifications() {
   modal(
-    `<h3>Notificações</h3><p class="muted">Visualizar remove o alerta; concluir arquiva a notificação.</p>${
+    `<h3>Notificações</h3><p class="muted">Ao abrir ou concluir, a notificação sai desta lista.</p>${
       state.notifications
-        .filter((n) => n.status !== "CONCLUIDA")
+        .filter((n) => n.status === "PENDENTE")
         .map(
           (n) =>
             `<div class="loan-card"><b>${h(n.title)}</b><p>${h(n.message)}</p><div class="toolbar">${button("Abrir", `data-notification="${n.id}"`)}${button("Concluir", `data-complete-notification="${n.id}"`)}</div></div>`,
@@ -1105,6 +1193,13 @@ function bind() {
   };
   $$("[data-new-appointment]").forEach(
     (b) => (b.onclick = () => appointmentModal()),
+  );
+  $$("[data-advance]").forEach(
+    (b) =>
+      (b.onclick = () =>
+        advanceSignature(
+          state.appointments.find((a) => a.id === b.dataset.advance),
+        )),
   );
   $$("[data-edit-appointment]").forEach(
     (b) =>

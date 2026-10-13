@@ -218,6 +218,52 @@ test("agendamento, isolamento e aprovação", async () => {
   const r = await prof("/api/appointments", "POST", body);
   assert.equal(r.status, 201);
   appointment = r.data;
+  assert.equal(
+    (
+      await other(`/api/appointments/${appointment.id}/advance-sign`, "POST", {
+        image: signature,
+      })
+    ).status,
+    403,
+  );
+  assert.equal(
+    (
+      await prof(`/api/appointments/${appointment.id}/advance-sign`, "POST", {
+        image: "invalid",
+      })
+    ).status,
+    400,
+  );
+  assert.equal(
+    (
+      await prof(`/api/appointments/${appointment.id}/advance-sign`, "POST", {
+        image: signature,
+      })
+    ).status,
+    200,
+  );
+  assert.equal(
+    (
+      await prof(`/api/appointments/${appointment.id}/advance-sign`, "POST", {
+        image: signature,
+      })
+    ).status,
+    409,
+  );
+  assert.equal(
+    (await prof(`/api/appointments/${appointment.id}`, "PATCH", body)).data
+      .advance_signature,
+    undefined,
+  );
+  assert.equal(
+    (
+      await prof(`/api/appointments/${appointment.id}/advance-sign`, "POST", {
+        image: signature,
+      })
+    ).status,
+    200,
+  );
+
   assert.equal((await other("/api/appointments")).data.length, 0);
   assert.equal(
     (await other(`/api/appointments/${appointment.id}`, "PATCH", body)).status,
@@ -255,6 +301,7 @@ test("liberação atômica, limites e aparelhos indisponíveis", async () => {
   });
   assert.equal(r.status, 201);
   loan = r.data;
+  assert.equal(loan.signatures.length, 0);
   assert.equal(
     (await ti(`/api/devices/${devices[0].id}`, "DELETE")).status,
     409,
@@ -294,6 +341,10 @@ test("liberação atômica, limites e aparelhos indisponíveis", async () => {
   );
 });
 test("pedido de extras e liberação única", async () => {
+  assert.equal((await prof("/api/me")).data.blocked, true);
+  await prof(`/api/loans/${loan.id}/students`, "PATCH", {
+    items: loan.items.map((i) => ({ id: i.id, student: "Aluno teste" })),
+  });
   assert.equal(
     (await prof(`/api/loans/${loan.id}/extras`, "POST", { quantity: 6 }))
       .status,
@@ -463,6 +514,9 @@ test("notificações, auditoria e dados persistem ao reabrir o banco", async () 
     ).status,
     200,
   );
+  assert.ok(
+    !(await prof("/api/notifications")).data.some((item) => item.id === n.id),
+  );
   assert.equal(
     (await prof(`/api/notifications/${n.id}`, "PATCH", { status: "CONCLUIDA" }))
       .status,
@@ -576,6 +630,9 @@ test("pedido misto preserva quantidades por tipo, edição, persistência e extr
   });
   assert.equal(released.status, 201);
   const l = released.data;
+  await prof(`/api/loans/${l.id}/students`, "PATCH", {
+    items: l.items.map((i) => ({ id: i.id, student: "Aluno misto" })),
+  });
   assert.equal(
     (await prof(`/api/loans/${l.id}/extras`, "POST", { quantity: 1 })).status,
     400,

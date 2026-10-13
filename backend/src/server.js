@@ -187,17 +187,24 @@ export function createApp({
   };
   const blocked = async (u) =>
     await get(
-      "SELECT l.id FROM loans l WHERE l.teacher_id=? AND l.status='AGUARDANDO_ASSINATURAS' AND NOT EXISTS(SELECT 1 FROM signatures s WHERE s.loan_id=l.id AND s.type='PROFESSOR')",
+      "SELECT l.id FROM loans l WHERE l.teacher_id=? AND ((l.status='AGUARDANDO_ASSINATURAS' AND NOT EXISTS(SELECT 1 FROM signatures s WHERE s.loan_id=l.id AND s.type='PROFESSOR')) OR (l.status='EM_USO' AND EXISTS(SELECT 1 FROM loan_items i WHERE i.loan_id=l.id AND trim(i.student)='' AND i.not_used=0)))",
       u.id,
     );
   const mustUnblocked = async (u) => {
     if (await blocked(u))
-      fail(409, "Assine o relatório pendente antes de continuar.");
+      fail(
+        409,
+        "Preencha os alunos ou assine o relatório pendente antes de continuar.",
+      );
   };
   const withItems = async (a) => ({
     ...a,
     items: await requestedItems(a, "INITIAL"),
     extra_items: await requestedItems(a, "EXTRA"),
+    advance_signature: await get(
+      "SELECT image,signed_at FROM advance_signatures WHERE appointment_id=?",
+      a.id,
+    ),
   });
   const requestedItems = async (a, kind) => {
     const rows = await all(
@@ -1024,6 +1031,7 @@ export function createApp({
         d.quantity,
         a.id,
       );
+      await run("DELETE FROM advance_signatures WHERE appointment_id=?", a.id);
       await saveItems(a.id, "INITIAL", d.items);
       await saveItems(a.id, "EXTRA", []);
       await resolveNotifications(a.id);
@@ -1034,6 +1042,42 @@ export function createApp({
         a.id,
       );
       await audit(req.user, "EDITAR_AGENDAMENTO", a.id);
+    });
+    res.json(await appointment(a.id));
+  });
+  app.post("/api/appointments/:id/advance-sign", async (req, res) => {
+    const a = await appointment(req.params.id);
+    if (req.user.id !== a.teacher_id)
+      fail(403, "Somente o professor responsável pode antecipar a assinatura.");
+    if (!["PENDENTE", "APROVADO"].includes(a.status))
+      fail(409, "Antecipe a assinatura antes da liberação.");
+    const image = z
+      .string()
+      .max(500000)
+      .regex(/^data:image\/png;base64,[A-Za-z0-9+/]+=*$/)
+      .parse(req.body.image);
+    const png = Buffer.from(image.split(",")[1], "base64");
+    if (
+      png.length < 100 ||
+      png.subarray(0, 8).toString("hex") !== "89504e470d0a1a0a"
+    )
+      fail(400, "Assinatura inválida.");
+    await transaction(db, async () => {
+      if (
+        await get(
+          "SELECT appointment_id FROM advance_signatures WHERE appointment_id=?",
+          a.id,
+        )
+      )
+        fail(409, "Antecipação já registrada.");
+      await run(
+        "INSERT INTO advance_signatures VALUES(?,?,?,?)",
+        a.id,
+        req.user.id,
+        image,
+        now(),
+      );
+      await audit(req.user, "ANTECIPAR_ASSINATURA", a.id);
     });
     res.json(await appointment(a.id));
   });
@@ -1450,7 +1494,7 @@ export function createApp({
   app.get("/api/notifications", async (req, res) =>
     res.json(
       await all(
-        "SELECT * FROM notifications WHERE user_id=? ORDER BY created_at DESC LIMIT 100",
+        "SELECT * FROM notifications WHERE user_id=? AND status='PENDENTE' ORDER BY created_at DESC LIMIT 100",
         req.user.id,
       ),
     ),

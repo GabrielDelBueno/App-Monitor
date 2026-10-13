@@ -201,3 +201,9 @@ Gerentes têm as funções completas, incluindo ativação de contas. Não apare
 Para ativar os gerentes nas contas já existentes, configure **MANAGER_EMAILS** no Environment do backend Render `app-monitor`: os e-mails exatos, separados por vírgula, sem senhas. Todas as contas indicadas devem existir e estar ativas. O próximo início promove essas contas em uma transação e preserva suas senhas e dados. A marcação é persistente; retirar o e-mail dessa configuração não revoga uma promoção anterior. Se alterar o e-mail de um gerente, atualize também esta configuração antes do próximo deploy. Não configure essa variável no frontend nem no Git.
 
 Publique primeiro o backend com essa configuração e depois o Static Site. Saia e entre novamente para visualizar o perfil Gerente. Contas não encontradas impedem a nova versão de iniciar, evitando uma ativação parcial.
+
+### Pendências, notificações e assinatura antecipada
+
+Notificações abertas ou concluídas saem da lista e do contador. Os registros permanecem no banco. Ao entrar, o professor com aparelhos em uso sem aluno informado (e sem “Não usei”), ou com relatório aguardando sua assinatura, recebe uma tela de pendências. A navegação retorna após regularizar todas elas; fechar o formulário não dispensa a pendência. Encerrar a sessão permanece possível. Novos pedidos e extras também são bloqueados pela API enquanto houver essas pendências.
+
+Ao agendar, o professor pode marcar “Fazer adiantamento da assinatura após salvar” ou usar “Antecipar assinatura” na lista de agendamentos. A antecipação é identificada como ciência do pedido e inclui o aviso para informar os alunos após a liberação. Ela aparece separadamente no relatório e não substitui a assinatura final após conferência da devolução. Editar o agendamento invalida a antecipação, exigindo novo registro se desejado.
