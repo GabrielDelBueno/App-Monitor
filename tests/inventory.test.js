@@ -135,6 +135,11 @@ test("importação autenticada: prévia, enriquecimento, preservação de QR, re
     const login = async (email) =>
       (await request("/api/login", { email, password: "Test-password-123!" }))
         .cookie;
+    await db
+      .prepare(
+        "INSERT INTO app_settings(key,value) VALUES('advance_required','false') ON CONFLICT(key) DO UPDATE SET value=excluded.value",
+      )
+      .run();
     const admin = await login("import-admin@test.local");
     for (const email of ["import-prof@test.local", "import-ti@test.local"])
       assert.equal(

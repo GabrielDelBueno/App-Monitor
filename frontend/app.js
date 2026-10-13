@@ -316,7 +316,7 @@ function navItems() {
 }
 function teacherPending() {
   if (state.user?.role !== "PROFESSOR") return [];
-  return state.loans.filter(
+  const loansPending = state.loans.filter(
     (l) =>
       l.teacher_id === state.user.id &&
       ((l.status === "EM_USO" &&
@@ -324,15 +324,32 @@ function teacherPending() {
         (l.status === "AGUARDANDO_ASSINATURAS" &&
           !l.signatures.some((s) => s.type === "PROFESSOR"))),
   );
+  return [
+    ...loansPending,
+    ...(state.user.advanceRequired
+      ? state.appointments
+          .filter(
+            (a) =>
+              a.teacher_id === state.user.id &&
+              ["PENDENTE", "APROVADO"].includes(a.status) &&
+              !a.advance_signature,
+          )
+          .map((a) => ({ ...a, needsAdvance: true }))
+      : []),
+  ];
 }
 function pendingPage(pending) {
   $("#app").innerHTML =
-    `<main class="main"><div class="card"><h1>Complete suas pendências para continuar</h1><p>Informe os nomes dos alunos que estão utilizando os dispositivos. Se algum aparelho não foi utilizado, marque “Não usei”. Assine também os relatórios pendentes.</p>${pending.map((l) => `<div class="loan-card"><h2>${h(l.class_name)} • ${fmt(l.departed_at)}</h2><p>${l.status === "EM_USO" ? "Faltam nomes dos alunos." : "Falta sua assinatura no relatório."}</p>${button(l.status === "EM_USO" ? "Abrir movimentação" : "Ver relatório", `data-pending="${l.id}"`, "primary")}</div>`).join("")}${button("Sair", 'id="logout"')}</div></main>`;
+    `<main class="main"><div class="card"><h1>Complete suas pendências para continuar</h1><p>Informe os nomes dos alunos que estão utilizando os dispositivos. Se algum aparelho não foi utilizado, marque “Não usei”. Assine também os relatórios pendentes.</p>${pending.map((l) => `<div class="loan-card"><h2>${h(l.class_name)} • ${l.needsAdvance ? date(l.date) : fmt(l.departed_at)}</h2><p>${l.needsAdvance ? "Falta o adiantamento obrigatório da assinatura." : l.status === "EM_USO" ? "Faltam nomes dos alunos." : "Falta sua assinatura no relatório."}</p>${button(l.needsAdvance ? "Antecipar assinatura" : l.status === "EM_USO" ? "Abrir movimentação" : "Ver relatório", `data-pending="${l.id}"`, "primary")}</div>`).join("")}${button("Sair", 'id="logout"')}</div></main>`;
   $$("[data-pending]").forEach(
     (b) =>
       (b.onclick = () => {
         const l = pending.find((l) => l.id === b.dataset.pending);
-        l.status === "EM_USO" ? loanModal(l) : reportModal(l);
+        l.needsAdvance
+          ? advanceSignature(l)
+          : l.status === "EM_USO"
+            ? loanModal(l)
+            : reportModal(l);
       }),
   );
   $("#logout").onclick = action(async () => {
@@ -555,7 +572,6 @@ function appointmentModal(existing) {
     return toast("Assine o relatório pendente antes de criar pedidos.");
   const a = existing || {
     date: localToday(),
-    time: "08:50",
     class_name: "",
     type: "TABLET",
     quantity: 1,
@@ -573,7 +589,7 @@ function appointmentModal(existing) {
               .join("")}</select>`,
           )
         : ""
-    }${field("Data", `<input type="date" name="date" min="${localToday()}" max="${end.toISOString().slice(0, 10)}" value="${a.date}" required>`)}${field("Horário", `<input name="time" type="time" value="${h(a.time)}" required>`)}${field("Turma", `<input name="class_name" value="${h(a.class_name)}" maxlength="200" required>`)}</div>${deviceChoices(existing ? requestItems(a) : [], 25)}<p class="muted">Ao editar, o pedido volta para aprovação e o pedido de extras é reiniciado.</p>${state.user.role === "PROFESSOR" ? '<label><input type="checkbox" name="advance" value="yes"> Fazer adiantamento da assinatura após salvar</label><p class="muted">Lembre-se de preencher os nomes dos alunos após receber os dispositivos.</p>' : ""}<button class="btn primary">Salvar agendamento</button></form>`,
+    }${field("Data", `<input type="date" name="date" min="${localToday()}" max="${end.toISOString().slice(0, 10)}" value="${a.date}" required>`)}${field("Turma", `<input name="class_name" value="${h(a.class_name)}" maxlength="200" required>`)}</div>${deviceChoices(existing ? requestItems(a) : [], 25)}<p class="muted">${existing ? `Horário registrado: ${h(a.time)} (São Paulo).` : "O horário será registrado automaticamente ao salvar, no fuso de São Paulo."}</p><p class="muted">Ao editar, o pedido volta para aprovação e o pedido de extras é reiniciado.</p>${state.user.role === "PROFESSOR" ? (state.user.advanceRequired ? "<p><b>O adiantamento da assinatura é obrigatório após salvar.</b></p><p>Preencha os nomes dos alunos após receber os dispositivos.</p>" : '<label><input type="checkbox" name="advance" value="yes"> Fazer adiantamento da assinatura após salvar</label><p class="muted">Lembre-se de preencher os nomes dos alunos após receber os dispositivos.</p>') : ""}<button class="btn primary">Salvar agendamento</button></form>`,
     true,
   );
   bindChoices($("#appointmentForm"), 25);
@@ -590,7 +606,10 @@ function appointmentModal(existing) {
     closeModal();
     await refresh();
     toast("Agendamento salvo.");
-    if (body.advance === "yes" && saved.teacher_id === state.user.id)
+    if (
+      (state.user.advanceRequired || body.advance === "yes") &&
+      saved.teacher_id === state.user.id
+    )
       advanceSignature(saved);
   });
 }
@@ -1172,8 +1191,31 @@ function bind() {
   });
   $("#account").onclick = () => {
     modal(
-      `<h3>Alterar senha</h3><form id="passwordForm">${field("Senha atual", '<input name="current" type="password" autocomplete="current-password" required>')}${field("Nova senha (mínimo 12 caracteres)", '<input name="password" type="password" autocomplete="new-password" minlength="12" maxlength="200" required>')}<button class="btn primary section">Salvar senha</button></form>`,
+      `<h3>Alterar senha</h3><form id="passwordForm">${field("Senha atual", '<input id="currentPassword" name="current" type="password" autocomplete="current-password" required>')}${button("👁 Mostrar senha digitada", 'type="button" id="toggleCurrent" aria-pressed="false"')}${field("Nova senha (mínimo 12 caracteres)", '<input name="password" type="password" autocomplete="new-password" minlength="12" maxlength="200" required>')}<button class="btn primary section">Salvar senha</button></form>`,
     );
+    $("#toggleCurrent").onclick = () => {
+      const input = $("#currentPassword"),
+        visible = input.type === "password";
+      input.type = visible ? "text" : "password";
+      $("#toggleCurrent").textContent = visible
+        ? "👁 Ocultar senha digitada"
+        : "👁 Mostrar senha digitada";
+      $("#toggleCurrent").setAttribute("aria-pressed", String(visible));
+    };
+    if (state.user.role === "GERENTE") {
+      $("#modal .modal").insertAdjacentHTML(
+        "beforeend",
+        `<hr><h3>Configuração da escola</h3><form id="signatureSetting"><label><input id="requireAdvance" type="checkbox" ${state.user.advanceRequired ? "checked" : ""}> Exigir adiantamento da assinatura dos professores</label><p>Esta opção vale para toda a escola. Somente gerentes podem alterá-la.</p><button class="btn primary">Salvar configuração</button></form>`,
+      );
+      $("#signatureSetting").onsubmit = action(async () => {
+        await api("/settings", {
+          method: "PATCH",
+          body: { advanceRequired: $("#requireAdvance").checked },
+        });
+        await refresh();
+        toast("Configuração salva.");
+      });
+    }
     if (authConfig.govbr && state.user.role === "PROFESSOR") {
       $("#modal .modal").insertAdjacentHTML(
         "beforeend",

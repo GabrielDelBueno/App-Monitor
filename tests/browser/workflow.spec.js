@@ -46,6 +46,9 @@ test("ciclo escolar completo pelas telas e layout móvel", async ({ page }) => {
   const errors = [];
   page.on("pageerror", (e) => errors.push(e.message));
   await login(page, "admin@browser.local");
+  await page.request.patch("/api/settings", {
+    data: { advanceRequired: false },
+  });
   await page.getByRole("button", { name: "Usuários", exact: true }).click();
   for (const [name, email, role] of [
     ["Professora Mariana", "prof@browser.local", "PROFESSOR"],
@@ -91,6 +94,12 @@ test("ciclo escolar completo pelas telas e layout móvel", async ({ page }) => {
   await logout(page);
   await login(page, "prof@browser.local");
   await page.getByRole("button", { name: "＋ Novo agendamento" }).click();
+  await expect(page.locator('input[name="time"]')).toHaveCount(0);
+  await expect(
+    page.getByText(
+      "O horário será registrado automaticamente ao salvar, no fuso de São Paulo.",
+    ),
+  ).toBeVisible();
   await page.getByLabel("Turma", { exact: true }).fill("8º Ano B");
   await page.getByRole("checkbox", { name: "Tablet", exact: true }).check();
   await page.getByLabel("Quantidade — Tablet", { exact: true }).fill("25");

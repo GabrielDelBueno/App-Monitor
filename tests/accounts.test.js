@@ -390,3 +390,98 @@ test("ativação de gerentes exige contas existentes e é atômica e repetível"
     await f.close();
   }
 });
+test("assinatura antecipada obrigatória por padrão e configuração exclusiva do gerente", async () => {
+  const f = await fixture();
+  try {
+    const manager = createUser(f.db, {
+      name: "Manager",
+      email: "setting-manager@local.test",
+      password,
+      role: "ADMINISTRADOR",
+    });
+    f.db.prepare("UPDATE users SET is_manager=1 WHERE id=?").run(manager.id);
+    const adminUser = createUser(f.db, {
+      name: "Admin",
+      email: "setting-admin@local.test",
+      password,
+      role: "ADMINISTRADOR",
+    });
+    const professor = createUser(f.db, {
+      name: "Professor Teste",
+      email: "setting-prof@local.test",
+      password,
+      role: "PROFESSOR",
+    });
+    const managerClient = f.browser(),
+      admin = f.browser(),
+      prof = f.browser();
+    for (const [client, user] of [
+      [managerClient, manager],
+      [admin, adminUser],
+      [prof, professor],
+    ])
+      await client("/api/login", "POST", { email: user.email, password });
+    assert.equal((await prof("/api/me")).data.advanceRequired, true);
+    for (const client of [admin, prof])
+      assert.equal(
+        (await client("/api/settings", "PATCH", { advanceRequired: false }))
+          .status,
+        403,
+      );
+    const date = new Intl.DateTimeFormat("en-CA", {
+      timeZone: "America/Sao_Paulo",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    }).format(new Date());
+    const created = await prof("/api/appointments", "POST", {
+      date,
+      class_name: "Assinatura obrigatória",
+      items: [{ type: "TABLET", quantity: 1 }],
+    });
+    assert.equal(created.status, 201);
+    const a = created.data;
+    assert.equal(
+      (await managerClient(`/api/appointments/${a.id}/approve`, "POST")).status,
+      409,
+    );
+    assert.equal(
+      (
+        await managerClient("/api/settings", "PATCH", {
+          advanceRequired: false,
+        })
+      ).status,
+      200,
+    );
+    assert.equal(
+      (await managerClient(`/api/appointments/${a.id}/approve`, "POST")).status,
+      200,
+    );
+    await managerClient("/api/settings", "PATCH", { advanceRequired: true });
+    assert.equal(
+      (
+        await managerClient("/api/loans", "POST", {
+          appointment_id: a.id,
+          device_ids: ["unused"],
+        })
+      ).status,
+      409,
+    );
+    const QRCode = (await import("qrcode")).default;
+    const image = await QRCode.toDataURL("fixture-signature");
+    assert.equal(
+      (await prof(`/api/appointments/${a.id}/advance-sign`, "POST", { image }))
+        .status,
+      200,
+    );
+    assert.equal((await prof("/api/me")).data.advanceRequired, true);
+    assert.equal(
+      f.db
+        .prepare("SELECT value FROM app_settings WHERE key='advance_required'")
+        .get().value,
+      "true",
+    );
+  } finally {
+    await f.close();
+  }
+});

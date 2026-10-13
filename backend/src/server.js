@@ -161,6 +161,16 @@ export function createApp({
       "UPDATE notifications SET status='CONCLUIDA' WHERE entity_id=?",
       entity,
     );
+  const advanceRequired = async () =>
+    (await get("SELECT value FROM app_settings WHERE key='advance_required'"))
+      ?.value !== "false";
+  const requireAdvance = async (a) => {
+    if ((await advanceRequired()) && !a.advance_signature)
+      fail(
+        409,
+        "O professor precisa antecipar a assinatura antes da aprovação ou liberação.",
+      );
+  };
   const staff = (u) => ["TI", "ADMINISTRADOR", "GERENTE"].includes(u.role);
   const mustOperate = (u) => {
     if (!["TI", "GERENTE"].includes(u.role))
@@ -614,6 +624,7 @@ export function createApp({
     res.json({
       ...req.user,
       blocked: !!(await blocked(req.user)),
+      advanceRequired: await advanceRequired(),
       requiresPasswordChange: !!req.user.must_change_password,
       govbrLinked: !!(await get(
         "SELECT id FROM external_identities WHERE user_id=?",
@@ -621,6 +632,22 @@ export function createApp({
       )),
     }),
   );
+  app.patch("/api/settings", async (req, res) => {
+    if (req.user.role !== "GERENTE")
+      fail(403, "Somente gerentes alteram esta configuração.");
+    const d = z
+      .object({ advanceRequired: z.boolean() })
+      .strict()
+      .parse(req.body);
+    await transaction(db, async () => {
+      await run(
+        "INSERT INTO app_settings(key,value) VALUES('advance_required',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value",
+        String(d.advanceRequired),
+      );
+      await audit(req.user, "ALTERAR_EXIGENCIA_ASSINATURA", null, d);
+    });
+    res.json(d);
+  });
   app.post("/api/password", async (req, res) => {
     const d = z
       .object({
@@ -958,7 +985,6 @@ export function createApp({
   );
   const appointmentSchema = z.object({
     date: z.iso.date(),
-    time: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/),
     class_name: text,
   });
   const validateDate = (d) => {
@@ -985,17 +1011,24 @@ export function createApp({
     );
     if (!u) fail(400, "Selecione um professor ativo.");
     const aId = id();
+    const createdAt = now();
+    const recordedTime = new Intl.DateTimeFormat("pt-BR", {
+      timeZone: "America/Sao_Paulo",
+      hour: "2-digit",
+      minute: "2-digit",
+      hourCycle: "h23",
+    }).format(new Date(createdAt));
     await transaction(db, async () => {
       await run(
         "INSERT INTO appointments(id,teacher_id,date,time,class_name,type,quantity,created_at) VALUES(?,?,?,?,?,?,?,?)",
         aId,
         teacherId,
         d.date,
-        d.time,
+        recordedTime,
         d.class_name,
         d.type,
         d.quantity,
-        now(),
+        createdAt,
       );
       await saveItems(aId, "INITIAL", d.items);
       await notifyStaff(
@@ -1025,7 +1058,7 @@ export function createApp({
       await run(
         "UPDATE appointments SET date=?,time=?,class_name=?,type=?,quantity=?,status='PENDENTE',extras=0 WHERE id=?",
         d.date,
-        d.time,
+        a.time,
         d.class_name,
         d.type,
         d.quantity,
@@ -1084,6 +1117,7 @@ export function createApp({
   app.post("/api/appointments/:id/approve", async (req, res) => {
     mustStaff(req.user);
     const a = await appointment(req.params.id);
+    await requireAdvance(a);
     if (a.status !== "PENDENTE")
       fail(409, "Apenas pedidos pendentes podem ser aprovados.");
     await transaction(db, async () => {
@@ -1145,6 +1179,7 @@ export function createApp({
     res.status(201).json(
       await transaction(db, async () => {
         const a = await appointment(d.appointment_id);
+        await requireAdvance(a);
         if (a.status !== "APROVADO")
           fail(409, "Aprove o agendamento antes de liberar.");
         if (a.date !== today())

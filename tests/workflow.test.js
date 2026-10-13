@@ -63,6 +63,11 @@ before(async () => {
     role: "ADMINISTRADOR",
   });
   await provisionManagers(db, "admin@test.local");
+  await db
+    .prepare(
+      "INSERT INTO app_settings(key,value) VALUES('advance_required','false') ON CONFLICT(key) DO UPDATE SET value=excluded.value",
+    )
+    .run();
   server = instance.app.listen(0, "127.0.0.1");
   await new Promise((r) => server.once("listening", r));
   base = `http://127.0.0.1:${server.address().port}`;
@@ -201,7 +206,6 @@ test("inventário, QR, exclusão lógica e manutenção", async () => {
 test("agendamento, isolamento e aprovação", async () => {
   const body = {
     date: today(),
-    time: "08:50",
     class_name: "8º B",
     type: "TABLET",
     quantity: 2,
@@ -218,6 +222,22 @@ test("agendamento, isolamento e aprovação", async () => {
   const r = await prof("/api/appointments", "POST", body);
   assert.equal(r.status, 201);
   appointment = r.data;
+  assert.equal(
+    appointment.time,
+    new Intl.DateTimeFormat("pt-BR", {
+      timeZone: "America/Sao_Paulo",
+      hour: "2-digit",
+      minute: "2-digit",
+      hourCycle: "h23",
+    }).format(new Date(appointment.created_at)),
+  );
+  const editedTime = await prof(
+    `/api/appointments/${appointment.id}`,
+    "PATCH",
+    { ...body, time: "invalid" },
+  );
+  assert.equal(editedTime.status, 200);
+  assert.equal(editedTime.data.time, appointment.time);
   assert.equal(
     (
       await other(`/api/appointments/${appointment.id}/advance-sign`, "POST", {
