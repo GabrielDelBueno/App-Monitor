@@ -712,6 +712,111 @@ test("pedido misto preserva quantidades por tipo, edição, persistência e extr
     200,
   );
 });
+test("TI corrige aparelho em uso sem copiar aluno e preserva auditoria", async () => {
+  const all = (await ti("/api/loans")).data;
+  const current = all.find((l) => l.status === "EM_USO");
+  const before = current.items[0];
+  const replacement = (
+    await ti("/api/devices", "POST", {
+      number: "CORRECAO-NOTE",
+      qr: "CORRECAO-QR",
+      type: "NOTEBOOK",
+      status: "BOM_ESTADO",
+    })
+  ).data;
+  const body = {
+    item_id: before.id,
+    device_id: replacement.id,
+    reason: "Tablet registrado em vez do notebook entregue",
+  };
+  assert.equal(
+    (await prof(`/api/loans/${current.id}/devices`, "PATCH", body)).status,
+    403,
+  );
+  assert.equal(
+    (await ti(`/api/loans/${loan.id}/devices`, "PATCH", body)).status,
+    409,
+  );
+  assert.equal(
+    (
+      await ti(`/api/loans/${current.id}/devices`, "PATCH", {
+        ...body,
+        device_id: current.items[1].device_id,
+      })
+    ).status,
+    409,
+  );
+  assert.equal(
+    (
+      await ti(`/api/loans/${current.id}/devices`, "PATCH", {
+        ...body,
+        reason: "",
+      })
+    ).status,
+    400,
+  );
+  const corrected = await ti(`/api/loans/${current.id}/devices`, "PATCH", body);
+  assert.equal(corrected.status, 200);
+  assert.equal(corrected.data.items.length, current.items.length);
+  assert.ok(
+    !corrected.data.items.some((i) => i.device_id === before.device_id),
+  );
+  const added = corrected.data.items.find(
+    (i) => i.device_id === replacement.id,
+  );
+  assert.equal(added.student, "");
+  assert.equal(added.not_used, 0);
+  assert.equal(added.type, "NOTEBOOK");
+  const inventory = (await ti("/api/devices")).data;
+  assert.equal(
+    !!inventory.find((d) => d.id === before.device_id).in_use,
+    false,
+  );
+  assert.equal(!!inventory.find((d) => d.id === replacement.id).in_use, true);
+  assert.ok(
+    (await admin("/api/audit")).data.some(
+      (a) => a.action === "CORRIGIR_APARELHO_MOVIMENTACAO",
+    ),
+  );
+  assert.equal(
+    (
+      await ti(`/api/devices/${before.device_id}`, "PATCH", {
+        status: "BOM_ESTADO",
+        type: "CHROMEBOOK",
+      })
+    ).status,
+    200,
+  );
+  assert.equal(
+    (await ti("/api/devices")).data.find((d) => d.id === before.device_id).type,
+    "CHROMEBOOK",
+  );
+});
+test("corrige cadastro antigo do modelo Chromebook ao reabrir o banco", async () => {
+  const d = (
+    await ti("/api/devices", "POST", {
+      number: "CHR-MIGRATION",
+      qr: "QR-MIGRATION",
+      type: "NOTEBOOK",
+      status: "BOM_ESTADO",
+      model: "Chromebook",
+      manufacturer: "SAMSUNG",
+      serial_number: "SERIAL-MIGRATION",
+    })
+  ).data;
+  const reopened = process.env.TEST_DATABASE_URL
+    ? await openPostgres(process.env.TEST_DATABASE_URL, {
+        localTest: process.env.TEST_DATABASE_TLS !== "true",
+      })
+    : openDatabase(dbPath);
+  const actual = await reopened
+    .prepare("SELECT * FROM devices WHERE id=?")
+    .get(d.id);
+  assert.equal(actual.type, "CHROMEBOOK");
+  assert.equal(actual.qr, "QR-MIGRATION");
+  assert.equal(actual.serial_number, "SERIAL-MIGRATION");
+  await reopened.close();
+});
 test("senha, desativação e logout encerram acesso", async () => {
   assert.equal(
     (

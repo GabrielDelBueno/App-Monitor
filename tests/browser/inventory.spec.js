@@ -103,7 +103,12 @@ async function exercise(page, source, expected) {
       return counts;
     }, {});
     if (expected === 201)
-      expect(summary).toEqual({ TABLET: 124, NOTEBOOK: 52, CELULAR: 25 });
+      expect(summary).toEqual({
+        TABLET: 124,
+        NOTEBOOK: 27,
+        CHROMEBOOK: 25,
+        CELULAR: 25,
+      });
     expect(await db.prepare("SELECT COUNT(*) AS n FROM devices").get()).toEqual(
       { n: 0 },
     );

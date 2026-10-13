@@ -318,6 +318,7 @@ test("administrador simplificado não opera aparelhos nem altera gerentes", asyn
       ["/api/appointments", "POST", {}],
       ["/api/appointments/unknown", "PATCH", {}],
       ["/api/loans", "POST", {}],
+      ["/api/loans/unknown/devices", "PATCH", {}],
       [`/api/users/${manager.id}`, "PATCH", { name: "Ataque" }],
       [`/api/users/${manager.id}/password`, "POST", {}],
       [`/api/users/${user.id}`, "PATCH", { active: false }],

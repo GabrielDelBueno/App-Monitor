@@ -797,7 +797,7 @@ function inventoryTable(devices) {
 }
 function deviceModal(d) {
   modal(
-    `<h3>${d ? "Editar dispositivo" : "Cadastrar dispositivo"}</h3><form id="deviceForm"><div class="form-grid">${!d ? field("Patrimônio", '<input name="number" maxlength="200" placeholder="ID de controle interno da UE" required>') + field("Código QR ou código de barras", '<input name="qr" maxlength="200" required>') + field("Tipo", `<select name="type">${options(["TABLET", "NOTEBOOK", "CHROMEBOOK", "CELULAR"], "TABLET")}</select>`) : `<p><b>${h(d.number)}</b></p>`}${field("ID de controle interno da UE", `<input name="internal_id" maxlength="200" value="${h(d?.internal_id || d?.number || "")}">`)}${field("Número de série", `<input name="serial_number" maxlength="200" value="${h(d?.serial_number || "")}">`)}${field("Fabricante", `<input name="manufacturer" maxlength="200" value="${h(d?.manufacturer || "")}">`)}${field("Modelo", `<input name="model" maxlength="200" value="${h(d?.model || "")}">`)}${field("Estado", `<select name="status">${options(["BOM_ESTADO", "CONSERVADO", "EM_MANUTENCAO", "QUEBRADO"], d?.status || "BOM_ESTADO")}</select>`)}</div>${field("Observações", `<textarea name="notes" maxlength="2000">${h(d?.notes || "")}</textarea>`)}<button class="btn primary section">Salvar dispositivo</button></form>`,
+    `<h3>${d ? "Editar dispositivo" : "Cadastrar dispositivo"}</h3><form id="deviceForm"><div class="form-grid">${!d ? field("Patrimônio", '<input name="number" maxlength="200" placeholder="ID de controle interno da UE" required>') + field("Código QR ou código de barras", '<input name="qr" maxlength="200" required>') + field("Tipo", `<select name="type">${options(["TABLET", "NOTEBOOK", "CHROMEBOOK", "CELULAR"], "TABLET")}</select>`) : `<p><b>${h(d.number)}</b></p>${field("Tipo", `<select name="type">${options(["TABLET", "NOTEBOOK", "CHROMEBOOK", "CELULAR"], d.type)}</select>`)}`}${field("ID de controle interno da UE", `<input name="internal_id" maxlength="200" value="${h(d?.internal_id || d?.number || "")}">`)}${field("Número de série", `<input name="serial_number" maxlength="200" value="${h(d?.serial_number || "")}">`)}${field("Fabricante", `<input name="manufacturer" maxlength="200" value="${h(d?.manufacturer || "")}">`)}${field("Modelo", `<input name="model" maxlength="200" value="${h(d?.model || "")}">`)}${field("Estado", `<select name="status">${options(["BOM_ESTADO", "CONSERVADO", "EM_MANUTENCAO", "QUEBRADO"], d?.status || "BOM_ESTADO")}</select>`)}</div>${field("Observações", `<textarea name="notes" maxlength="2000">${h(d?.notes || "")}</textarea>`)}<button class="btn primary section">Salvar dispositivo</button></form>`,
     true,
   );
   $("#deviceForm").onsubmit = action(async (e) => {
@@ -874,9 +874,10 @@ function loanModal(l) {
   const teacher = state.user.id === l.teacher_id;
   const a = state.appointments.find((a) => a.id === l.appointment_id);
   modal(
-    `<h3>${h(l.class_name)} • ${h(l.teacher.name)}</h3>${status(l.status)}<p>Saída: ${fmt(l.departed_at)}</p>${l.report ? `<div class="notice"><b>Relato do professor</b><p>${h(l.report)}</p></div>` : ""}<form id="loanForm">${table(
+    `<h3>${h(l.class_name)} • ${h(l.teacher.name)}</h3>${status(l.status)}<p>Saída: ${fmt(l.departed_at)}</p>${operates() && l.status === "EM_USO" ? button("Corrigir aparelho", 'id="correctLoanDevice"') : ""}${l.report ? `<div class="notice"><b>Relato do professor</b><p>${h(l.report)}</p></div>` : ""}<form id="loanForm">${table(
       [
         "Dispositivo",
+        "Tipo",
         "Aluno",
         "Saída",
         ...(operates() && l.status === "AGUARDANDO_DEVOLUCAO"
@@ -885,11 +886,29 @@ function loanModal(l) {
       ],
       l.items.map(
         (i) =>
-          `<tr><td>${h(i.number)}</td><td>${teacher && l.status === "EM_USO" ? `<input class="student-input" data-item="${i.id}" value="${h(i.student)}" ${i.not_used ? "disabled" : ""} maxlength="200" aria-label="Aluno do dispositivo ${h(i.number)}"><label><input type="checkbox" data-unused="${i.id}" ${i.not_used ? "checked" : ""}> Não usei</label>` : h(i.not_used ? "Não usei" : i.student || "Não informado")}</td><td>${status(i.departure_status)}</td>${operates() && l.status === "AGUARDANDO_DEVOLUCAO" ? `<td><select data-return="${i.id}" aria-label="Estado de ${h(i.number)}">${options(["BOM_ESTADO", "CONSERVADO", "EM_MANUTENCAO", "QUEBRADO"], i.departure_status)}</select></td><td><input data-comment="${i.id}" maxlength="2000" placeholder="Obrigatório se alterar o estado" aria-label="Comentário sobre ${h(i.number)}"></td>` : ""}</tr>`,
+          `<tr><td>${h(i.number)}</td><td>${h(labels[i.type])}</td><td>${teacher && l.status === "EM_USO" ? `<input class="student-input" data-item="${i.id}" value="${h(i.student)}" ${i.not_used ? "disabled" : ""} maxlength="200" aria-label="Aluno do dispositivo ${h(i.number)}"><label><input type="checkbox" data-unused="${i.id}" ${i.not_used ? "checked" : ""}> Não usei</label>` : h(i.not_used ? "Não usei" : i.student || "Não informado")}</td><td>${status(i.departure_status)}</td>${operates() && l.status === "AGUARDANDO_DEVOLUCAO" ? `<td><select data-return="${i.id}" aria-label="Estado de ${h(i.number)}">${options(["BOM_ESTADO", "CONSERVADO", "EM_MANUTENCAO", "QUEBRADO"], i.departure_status)}</select></td><td><input data-comment="${i.id}" maxlength="2000" placeholder="Obrigatório se alterar o estado" aria-label="Comentário sobre ${h(i.number)}"></td>` : ""}</tr>`,
       ),
     )}${teacher && l.status === "EM_USO" ? `${field("Relato da utilização e devolução", '<textarea id="returnReport" rows="4" minlength="5" maxlength="4000" placeholder="Relate a utilização e qualquer ocorrência."></textarea>')}<div class="toolbar section">${button("Salvar associações", 'id="saveStudents" type="button"', "primary")}${button("Solicitar extras", 'id="requestExtras" type="button"')}${button("Enviar devolução", 'id="submitReturn" type="button"', "success")}</div>` : ""}${operates() && l.status === "AGUARDANDO_DEVOLUCAO" ? `<p class="muted">Confira fisicamente todos os itens antes de concluir.</p>${button("Concluir conferência", 'id="checkReturn" type="button"', "success")}` : ""}</form>${operates() && l.status === "EM_USO" && a?.extras && l.items.length === a.quantity ? `<div class="notice">Pedido extra: ${h(requestSummary(a, true))}. ${button("Liberar extras", `id="releaseExtras"`)}</div>` : ""}`,
     true,
   );
+  if ($("#correctLoanDevice"))
+    $("#correctLoanDevice").onclick = () => {
+      const available = state.devices.filter(
+        (d) => !d.in_use && !["QUEBRADO", "EM_MANUTENCAO"].includes(d.status),
+      );
+      modal(
+        `<h3>Corrigir aparelho da movimentação</h3><p>Troque o aparelho registrado por engano pelo que foi entregue. O item substituído volta a ficar disponível. O novo item fica sem nome de aluno. O pedido original e as assinaturas antecipadas não são alterados; a correção ficará na auditoria.</p><form id="correctDeviceForm">${field("Aparelho registrado por engano", `<select name="item_id">${l.items.map((i) => `<option value="${i.id}">${h(i.number)} • ${h(labels[i.type])}</option>`).join("")}</select>`)}${field("Aparelho correto", `<select name="device_id" required><option value="">Selecione</option>${available.map((d) => `<option value="${d.id}">${h(d.internal_id || d.number)} • ${h(labels[d.type])} • ${h(d.serial_number || "")} • ${h(d.model || "")}</option>`).join("")}</select>`)}${field("Motivo da correção", '<textarea name="reason" minlength="5" maxlength="2000" required></textarea>')}<button class="btn primary">Salvar correção</button></form>`,
+        true,
+      );
+      $("#correctDeviceForm").onsubmit = action(async (e) => {
+        await api(`/loans/${l.id}/devices`, {
+          method: "PATCH",
+          body: formValue(e.currentTarget),
+        });
+        await refresh();
+        toast("Aparelho corrigido. O professor deve preencher o novo aluno.");
+      });
+    };
   $$("[data-unused]").forEach(
     (box) =>
       (box.onchange = () => {

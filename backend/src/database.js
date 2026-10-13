@@ -119,6 +119,9 @@ export function openDatabase(path) {
   db.exec(
     "CREATE UNIQUE INDEX IF NOT EXISTS devices_internal ON devices(internal_id) WHERE internal_id <> ''",
   );
+  db.exec(
+    "UPDATE devices SET type='CHROMEBOOK' WHERE type='NOTEBOOK' AND UPPER(TRIM(model))='CHROMEBOOK'",
+  );
   return db;
 }
 export async function transaction(db, fn) {

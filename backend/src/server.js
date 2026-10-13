@@ -924,6 +924,7 @@ export function createApp({
         serial_number: deviceFields.serial_number.removeDefault().optional(),
         manufacturer: deviceFields.manufacturer.removeDefault().optional(),
         model: deviceFields.model.removeDefault().optional(),
+        type: z.enum(types).optional(),
         status: z.enum(statuses),
         notes: z.string().trim().max(2000).default(""),
       })
@@ -939,7 +940,8 @@ export function createApp({
       fail(409, "Altere o estado durante a conferência de retorno.");
     await transaction(db, async () => {
       await run(
-        "UPDATE devices SET status=?,notes=?,internal_id=COALESCE(?,internal_id),serial_number=COALESCE(?,serial_number),manufacturer=COALESCE(?,manufacturer),model=COALESCE(?,model) WHERE id=?",
+        "UPDATE devices SET type=COALESCE(?,type),status=?,notes=?,internal_id=COALESCE(?,internal_id),serial_number=COALESCE(?,serial_number),manufacturer=COALESCE(?,manufacturer),model=COALESCE(?,model) WHERE id=?",
+        d.type ?? null,
         d.status,
         d.notes,
         d.internal_id ?? null,
@@ -1233,6 +1235,58 @@ export function createApp({
         return await fullLoan(await loan(lId));
       }),
     );
+  });
+  app.patch("/api/loans/:id/devices", async (req, res) => {
+    mustOperate(req.user);
+    const d = z
+      .object({
+        item_id: z.string(),
+        device_id: z.string(),
+        reason: z.string().trim().min(5).max(2000),
+      })
+      .strict()
+      .parse(req.body);
+    await transaction(db, async () => {
+      const l = await loan(req.params.id);
+      if (l.status !== "EM_USO")
+        fail(
+          409,
+          "Corrija os aparelhos enquanto a movimentação estiver em uso, antes da devolução e das assinaturas.",
+        );
+      const old = await get(
+        "SELECT * FROM loan_items WHERE id=? AND loan_id=?",
+        d.item_id,
+        l.id,
+      );
+      if (!old) fail(404, "Item não encontrado nesta movimentação.");
+      if (old.device_id === d.device_id) fail(400, "Escolha outro aparelho.");
+      const [device] = await validateDevices([d.device_id]);
+      await run("DELETE FROM loan_items WHERE id=?", old.id);
+      await run(
+        "INSERT INTO loan_items(id,loan_id,device_id,departure_status) VALUES(?,?,?,?)",
+        id(),
+        l.id,
+        device.id,
+        device.status,
+      );
+      await audit(req.user, "CORRIGIR_APARELHO_MOVIMENTACAO", l.id, {
+        reason: d.reason,
+        previous: old,
+        replacement: {
+          id: device.id,
+          number: device.number,
+          type: device.type,
+        },
+      });
+      await notify(
+        l.teacher_id,
+        "Aparelho corrigido na movimentação",
+        "A equipe corrigiu um aparelho. Preencha o aluno ou marque Não usei para o novo item.",
+        "loans",
+        l.id,
+      );
+    });
+    res.json(await fullLoan(await loan(req.params.id)));
   });
   app.patch("/api/loans/:id/students", async (req, res) => {
     const l = await loan(req.params.id);
@@ -1536,7 +1590,7 @@ export function createApp({
       ))) OR
       (page IN ('loans','reports') AND EXISTS(SELECT 1 FROM loans l WHERE l.id=notifications.entity_id AND (
         l.status='CONCLUIDA' OR
-        (notifications.title IN ('Dispositivos liberados','Extras liberados') AND (l.status<>'EM_USO' OR NOT EXISTS(SELECT 1 FROM loan_items i WHERE i.loan_id=l.id AND trim(i.student)='' AND i.not_used=0))) OR
+        (notifications.title IN ('Dispositivos liberados','Extras liberados','Aparelho corrigido na movimentação') AND (l.status<>'EM_USO' OR NOT EXISTS(SELECT 1 FROM loan_items i WHERE i.loan_id=l.id AND trim(i.student)='' AND i.not_used=0))) OR
         (notifications.title='Conferência de retorno' AND l.status<>'AGUARDANDO_DEVOLUCAO') OR
         (notifications.title='Relatório para assinatura' AND EXISTS(SELECT 1 FROM signatures s WHERE s.loan_id=l.id AND s.type='PROFESSOR')) OR
         (notifications.title='Assinatura de TI pendente' AND EXISTS(SELECT 1 FROM signatures s WHERE s.loan_id=l.id AND s.type='TI')) OR

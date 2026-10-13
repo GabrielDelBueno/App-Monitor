@@ -121,6 +121,9 @@ export async function openPostgres(
       await query(
         "CREATE UNIQUE INDEX IF NOT EXISTS devices_internal ON devices(internal_id) WHERE internal_id <> ''",
       );
+      await query(
+        "UPDATE devices SET type='CHROMEBOOK' WHERE type='NOTEBOOK' AND UPPER(TRIM(model))='CHROMEBOOK'",
+      );
     });
     return db;
   } catch (error) {

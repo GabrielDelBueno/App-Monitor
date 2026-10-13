@@ -41,6 +41,7 @@
       "NOTEBOOK SALA DE AULA": "NOTEBOOK",
       "NOTEBOOK BASICO EDUCACIONAL": "NOTEBOOK",
       SMARTPHONE: "CELULAR",
+      CHROMEBOOK: "CHROMEBOOK",
     };
     const records = [],
       counts = {},
@@ -53,7 +54,12 @@
       if (!cells.length) return;
       const value = (header) => cells[headers.indexOf(header)] || "";
       const category = value("CATEGORIA DO EQUIPAMENTO");
-      const type = types[normalized(category)];
+      const mappedType = types[normalized(category)];
+      const type =
+        mappedType === "NOTEBOOK" &&
+        /CHROMEBOOK/.test(normalized(value("MODELO")))
+          ? "CHROMEBOOK"
+          : mappedType;
       if (
         !type ||
         normalized(value("STATUS DO EQUIPAMENTO")) !== "DISPONIVEL"
