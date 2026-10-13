@@ -114,6 +114,18 @@ async function exercise(page, source, expected) {
     expect(db.prepare("SELECT COUNT(*) AS n FROM devices").get().n).toBe(
       expected,
     );
+    await expect(
+      page.locator("#inventorySummary .stat").first().locator("strong"),
+    ).toHaveText(String(expected));
+    const groupedTotal = await page
+      .locator("#inventorySummary tbody tr")
+      .evaluateAll((rows) =>
+        rows.reduce(
+          (sum, row) => sum + Number(row.lastElementChild.textContent),
+          0,
+        ),
+      );
+    expect(groupedTotal).toBe(expected);
     const row = parsed.records.find((row) => row.serial_number.startsWith("0"));
     expect(row).toBeTruthy();
     const search = page.getByLabel(
@@ -122,6 +134,13 @@ async function exercise(page, source, expected) {
     for (const value of [row.number, row.serial_number]) {
       await search.fill(value);
       await expect(page.locator("#deviceList tbody tr")).toHaveCount(1);
+      await expect(
+        page.locator("#inventorySummary .stat").first().locator("strong"),
+      ).toHaveText("1");
+      await expect(page.locator("#inventorySummary tbody tr")).toHaveCount(1);
+      await expect(page.locator("#inventorySummary tbody")).toContainText(
+        row.model,
+      );
       await expect(page.locator("#deviceList")).toContainText(row.model);
     }
     await page

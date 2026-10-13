@@ -728,8 +728,55 @@ function inventory() {
         button("Exportar planilha", 'id="exportInventory"') +
         (manages() ? button("Importar planilha", 'id="importInventory"') : ""),
     ) +
-    `<div class="card">${field("Buscar por controle interno, série, QR, modelo ou fabricante", '<input id="inventorySearch" placeholder="Digite para filtrar">')}<div class="section" id="deviceList">${inventoryTable(state.devices)}</div></div>`
+    `<div class="card">${field("Buscar por controle interno, série, QR, modelo ou fabricante", '<input id="inventorySearch" placeholder="Digite para filtrar">')}<div id="inventorySummary" class="section">${inventorySummary(state.devices)}</div><div class="section" id="deviceList">${inventoryTable(state.devices)}</div></div>`
   );
+}
+function inventorySummary(devices) {
+  const groups = new Map();
+  const clean = (value) =>
+    String(value || "")
+      .trim()
+      .replace(/\s+/g, " ") || "Não informado";
+  for (const d of devices) {
+    const manufacturer = clean(d.manufacturer),
+      model = clean(d.model);
+    const key = JSON.stringify([
+      d.type,
+      manufacturer.toLocaleLowerCase("pt-BR"),
+      model.toLocaleLowerCase("pt-BR"),
+    ]);
+    const group = groups.get(key) || {
+      type: d.type,
+      manufacturer,
+      model,
+      quantity: 0,
+    };
+    group.quantity++;
+    groups.set(key, group);
+  }
+  const totals = [
+    ["Total", devices.length],
+    ...["TABLET", "NOTEBOOK", "CHROMEBOOK", "CELULAR"].map((type) => [
+      labels[type],
+      devices.filter((d) => d.type === type).length,
+    ]),
+  ];
+  return `<h2>Resumo do inventário</h2><p class="muted">Quantidades dos aparelhos cadastrados, incluindo os que estão em uso ou manutenção. A busca filtra também este resumo.</p><div class="grid">${totals.map(([label, n]) => `<div class="card stat"><span>${h(label)}</span><strong>${n}</strong></div>`).join("")}</div><h3>Quantidade por tipo, marca e modelo</h3>${table(
+    ["Tipo", "Marca / fabricante", "Modelo", "Quantidade"],
+    [...groups.values()]
+      .sort((a, b) =>
+        [labels[a.type], a.manufacturer, a.model]
+          .join(" ")
+          .localeCompare(
+            [labels[b.type], b.manufacturer, b.model].join(" "),
+            "pt-BR",
+          ),
+      )
+      .map(
+        (g) =>
+          `<tr><td>${h(labels[g.type])}</td><td>${h(g.manufacturer)}</td><td>${h(g.model)}</td><td>${g.quantity}</td></tr>`,
+      ),
+  )}`;
 }
 function inventoryTable(devices) {
   return table(
@@ -1379,14 +1426,14 @@ function bind() {
   if ($("#newDevice")) $("#newDevice").onclick = () => deviceModal();
   if ($("#inventorySearch"))
     $("#inventorySearch").oninput = (e) => {
-      const q = e.target.value.toLowerCase();
-      $("#deviceList").innerHTML = inventoryTable(
-        state.devices.filter((d) =>
-          `${d.number} ${d.internal_id || ""} ${d.serial_number || ""} ${d.qr} ${d.manufacturer || ""} ${d.model || ""}`
-            .toLowerCase()
-            .includes(q),
-        ),
+      const q = e.target.value.trim().toLocaleLowerCase("pt-BR");
+      const devices = state.devices.filter((d) =>
+        `${d.number} ${d.internal_id || ""} ${d.serial_number || ""} ${d.qr} ${d.manufacturer || ""} ${d.model || ""} ${labels[d.type] || ""}`
+          .toLocaleLowerCase("pt-BR")
+          .includes(q),
       );
+      $("#deviceList").innerHTML = inventoryTable(devices);
+      $("#inventorySummary").innerHTML = inventorySummary(devices);
       bindTables();
     };
   if ($("#historySearch"))
