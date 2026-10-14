@@ -226,4 +226,12 @@ O leitor prioriza a faixa central da mira, solicita câmera em Full HD quando di
 
 Agendamentos pendentes e os aprovados anteriormente aparecem como “Aguardando liberação”. O TI ou gerente entrega os aparelhos diretamente, respeitando data, quantidades, disponibilidade e assinatura obrigatória. A rota antiga de aprovação permanece apenas para compatibilidade com telas antigas abertas.
 
-As listas de agendamentos e movimentações usam três consultas cada, independentemente do número de registros, em vez de consultas individuais para cada registro. A validação de disponibilidade dos aparelhos também ocorre em lote. A fila de segurança das operações foi mantida para impedir liberações simultâneas do mesmo aparelho. A suspensão por inatividade da hospedagem gratuita continua podendo causar espera no primeiro acesso.
+As listas de agendamentos e movimentações usam respectivamente três e quatro consultas, independentemente do número de registros, em vez de consultas individuais para cada registro. A validação de disponibilidade dos aparelhos também ocorre em lote. A fila de segurança das operações foi mantida para impedir liberações simultâneas do mesmo aparelho. A suspensão por inatividade da hospedagem gratuita continua podendo causar espera no primeiro acesso.
+
+### Correção e encerramento pela equipe
+
+TI e gerente podem usar **Editar alunos / assinatura** em movimentações **Em uso** ou **Aguardando assinaturas**. A tela permite completar os nomes e coletar a assinatura real do professor, mantendo as assinaturas existentes. O operador e o motivo ficam registrados no relatório e na auditoria; o professor recebe uma notificação.
+
+Os atalhos **Nomes não registrados**, **Não assinado** e **Não registrado e não assinado** preparam o encerramento excepcional. É obrigatório explicar o motivo e confirmar a devolução física de todos os aparelhos. Em uso, a equipe informa o estado de retorno de cada aparelho e justifica alterações. Em aguardando assinaturas, a conferência já existente é preservada, sem alterar o estado atual dos aparelhos que possam ter sido emprestados novamente.
+
+O encerramento vai para o histórico e remove a pendência do professor. Os equipamentos em bom estado ficam disponíveis; os quebrados ou em manutenção continuam indisponíveis. Nomes existentes são preservados e faltas são descritas explicitamente. Não é gerada assinatura fictícia para professor ou TI: o relatório identifica o encerramento pela equipe. Professor e administrador comum não têm acesso a essa operação. Movimentações concluídas não podem ser reabertas por este fluxo.

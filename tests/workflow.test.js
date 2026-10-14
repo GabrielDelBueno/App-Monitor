@@ -922,6 +922,103 @@ test("consultas das listas não crescem com o histórico e preservam isolamento"
     db.prepare = prepare;
   }
 });
+test("TI regulariza ausências com conferência e assinatura identificada, sem apagar histórico", async () => {
+  for (const [n, initialStatus] of [
+    "EM_USO",
+    "AGUARDANDO_ASSINATURAS",
+  ].entries()) {
+    const device = (
+      await ti("/api/devices", "POST", {
+        number: `REG-${n}`,
+        qr: `REG-${n}`,
+        type: "TABLET",
+        status: "BOM_ESTADO",
+      })
+    ).data;
+    const lid = `reg-loan-${n}`,
+      aid = `reg-appt-${n}`,
+      itemid = `reg-item-${n}`;
+    await db
+      .prepare(
+        "INSERT INTO appointments(id,teacher_id,date,time,class_name,type,quantity,status,created_at) SELECT ?,teacher_id,date,time,class_name,type,1,'EM_USO',created_at FROM appointments WHERE id=?",
+      )
+      .run(aid, appointment.id);
+    await db
+      .prepare(
+        "INSERT INTO loans(id,appointment_id,teacher_id,ti_id,class_name,departed_at,status) SELECT ?,?,teacher_id,ti_id,class_name,departed_at,? FROM loans WHERE id=?",
+      )
+      .run(lid, aid, initialStatus, loan.id);
+    await db
+      .prepare(
+        "INSERT INTO loan_items(id,loan_id,device_id,departure_status) VALUES(?,?,?,'BOM_ESTADO')",
+      )
+      .run(itemid, lid, device.id);
+    const path = `/api/loans/${lid}/regularize`;
+    const body = {
+      reason: "Regularização de registro antigo",
+      missing_students: true,
+      unsigned: true,
+      close: true,
+      confirmed_return: false,
+      items: [{ id: itemid, student: "", status: "BOM_ESTADO", comment: "" }],
+    };
+    assert.equal((await prof(path, "PATCH", body)).status, 403);
+    assert.equal((await ti(path, "PATCH", body)).status, 400);
+    assert.equal(
+      (await db.prepare("SELECT status FROM loans WHERE id=?").get(lid)).status,
+      initialStatus,
+    );
+    if (n === 0) {
+      const result = await ti(path, "PATCH", {
+        ...body,
+        confirmed_return: true,
+      });
+      assert.equal(result.status, 200);
+      assert.equal(result.data.status, "CONCLUIDA");
+      assert.equal(result.data.signatures.length, 0);
+      assert.equal(result.data.correction.unsigned, 1);
+      assert.equal(result.data.correction.missing_students, 1);
+      assert.equal(
+        Boolean(
+          (await ti("/api/devices")).data.find((d) => d.id === device.id)
+            .in_use,
+        ),
+        false,
+      );
+      assert.equal(
+        (await ti(path, "PATCH", { ...body, confirmed_return: true })).status,
+        409,
+      );
+    } else {
+      const edited = await ti(path, "PATCH", {
+        ...body,
+        missing_students: false,
+        unsigned: false,
+        close: false,
+        image: signature,
+        items: [{ ...body.items[0], student: "Aluno registrado pelo TI" }],
+      });
+      assert.equal(edited.status, 200);
+      assert.equal(edited.data.signatures[0].user_id, teacher.id);
+      assert.equal(edited.data.items[0].student, "Aluno registrado pelo TI");
+      assert.ok(edited.data.correction.actor_id);
+      assert.equal(
+        (await ti(path, "PATCH", { ...body, confirmed_return: true })).status,
+        400,
+      );
+      const closed = await ti(path, "PATCH", {
+        ...body,
+        confirmed_return: true,
+        missing_students: false,
+        unsigned: false,
+        items: [{ ...body.items[0], student: "Aluno registrado pelo TI" }],
+      });
+      assert.equal(closed.status, 200);
+      assert.equal(closed.data.status, "CONCLUIDA");
+      assert.equal(closed.data.signatures[0].image, signature);
+    }
+  }
+});
 test("senha, desativação e logout encerram acesso", async () => {
   assert.equal(
     (

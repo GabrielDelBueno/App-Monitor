@@ -151,6 +151,20 @@ test("ciclo escolar completo pelas telas e layout móvel", async ({ page }) => {
   await expect(
     page.getByRole("button", { name: "Abrir movimentação" }),
   ).toBeVisible();
+  await page
+    .getByRole("button", { name: "Editar alunos / assinatura", exact: true })
+    .click();
+  await expect(
+    page.getByText("A assinatura existente será preservada."),
+  ).toBeVisible();
+  await page.getByLabel("Aluno TB-1", { exact: true }).fill("Ana Souza");
+  await page
+    .getByLabel("Motivo da correção")
+    .fill("Registro dos alunos pelo TI");
+  await page
+    .getByRole("button", { name: "Salvar correção", exact: true })
+    .click();
+  await expect(page.locator("#modal")).toHaveCount(0);
   await logout(page);
   await login(page, "prof@browser.local");
   await page.getByRole("button", { name: "Abrir movimentação" }).click();

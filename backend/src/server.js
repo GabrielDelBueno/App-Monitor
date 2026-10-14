@@ -312,6 +312,10 @@ export function createApp({
   };
   const fullLoan = async (l) => ({
     ...l,
+    correction: await get(
+      "SELECT c.*,u.name AS actor_name FROM loan_corrections c JOIN users u ON u.id=c.actor_id WHERE c.loan_id=?",
+      l.id,
+    ),
     teacher: await get(
       "SELECT id,name,email FROM users WHERE id=?",
       l.teacher_id,
@@ -1204,7 +1208,7 @@ export function createApp({
   app.get("/api/loans", async (req, res) => {
     const scope = staff(req.user) ? "" : "WHERE l.teacher_id=?";
     const params = staff(req.user) ? [] : [req.user.id];
-    const [loans, items, signatures] = await Promise.all([
+    const [loans, items, signatures, corrections] = await Promise.all([
       all(
         `SELECT l.*,u.name AS teacher_name,u.email AS teacher_email,t.name AS ti_name FROM loans l JOIN users u ON u.id=l.teacher_id JOIN users t ON t.id=l.ti_id ${scope} ORDER BY l.departed_at DESC`,
         ...params,
@@ -1217,7 +1221,12 @@ export function createApp({
         `SELECT s.*,u.name FROM signatures s JOIN users u ON u.id=s.user_id JOIN loans l ON l.id=s.loan_id ${scope}`,
         ...params,
       ),
+      all(
+        `SELECT c.*,u.name AS actor_name FROM loan_corrections c JOIN users u ON u.id=c.actor_id JOIN loans l ON l.id=c.loan_id ${scope}`,
+        ...params,
+      ),
     ]);
+    const correctionMap = new Map(corrections.map((c) => [c.loan_id, c]));
     const groupedItems = groupBy(items, "loan_id");
     const groupedSignatures = groupBy(signatures, "loan_id");
     res.json(
@@ -1225,6 +1234,7 @@ export function createApp({
         ...l,
         teacher: { id: l.teacher_id, name: teacher_name, email: teacher_email },
         ti: { id: l.ti_id, name: ti_name },
+        correction: correctionMap.get(l.id),
         items: groupedItems.get(l.id) || [],
         signatures: groupedSignatures.get(l.id) || [],
       })),
@@ -1343,6 +1353,155 @@ export function createApp({
         "Aparelho corrigido na movimentação",
         "A equipe corrigiu um aparelho. Preencha o aluno ou marque Não usei para o novo item.",
         "loans",
+        l.id,
+      );
+    });
+    res.json(await fullLoan(await loan(req.params.id)));
+  });
+  app.patch("/api/loans/:id/regularize", async (req, res) => {
+    mustOperate(req.user);
+    const d = z
+      .object({
+        reason: z.string().trim().min(5).max(2000),
+        missing_students: z.boolean(),
+        unsigned: z.boolean(),
+        close: z.boolean(),
+        confirmed_return: z.boolean(),
+        image: z.string().max(500000).optional(),
+        items: z
+          .array(
+            z.object({
+              id: z.string(),
+              student: z.string().trim().max(200),
+              status: z.enum(statuses),
+              comment: z.string().trim().max(2000),
+            }),
+          )
+          .min(1)
+          .max(30),
+      })
+      .parse(req.body);
+    if ((d.missing_students || d.unsigned) && !d.close)
+      fail(400, "Encerre a movimentação para registrar essas ausências.");
+    if (d.close && !d.confirmed_return)
+      fail(400, "Confirme a devolução física de todos os aparelhos.");
+    if (d.image) {
+      const png = Buffer.from(d.image.split(",")[1] || "", "base64");
+      if (
+        !/^data:image\/png;base64,[A-Za-z0-9+/]+=*$/.test(d.image) ||
+        png.length < 100 ||
+        png.subarray(0, 8).toString("hex") !== "89504e470d0a1a0a"
+      )
+        fail(400, "Assinatura inválida.");
+    }
+    await transaction(db, async () => {
+      const l = await loan(req.params.id);
+      if (!["EM_USO", "AGUARDANDO_ASSINATURAS"].includes(l.status))
+        fail(409, "A movimentação não permite esta edição.");
+      const items = await all("SELECT * FROM loan_items WHERE loan_id=?", l.id);
+      if (
+        items.length !== d.items.length ||
+        new Set(d.items.map((i) => i.id)).size !== items.length ||
+        d.items.some((i) => !items.some((j) => j.id === i.id))
+      )
+        fail(400, "Informe todos os aparelhos, sem repetições.");
+      const signed = await get(
+        "SELECT id FROM signatures WHERE loan_id=? AND type='PROFESSOR'",
+        l.id,
+      );
+      const advance = await get(
+        "SELECT * FROM advance_signatures WHERE appointment_id=? AND user_id=?",
+        l.appointment_id,
+        l.teacher_id,
+      );
+      if (d.unsigned && (signed || advance || d.image))
+        fail(400, "Já existe assinatura do professor; ela será preservada.");
+      if (d.image && (signed || advance))
+        fail(409, "A assinatura existente será preservada.");
+      if (d.close && !d.unsigned && !signed && !advance && !d.image)
+        fail(400, "Registre a assinatura ou selecione Não assinado.");
+      if (
+        d.close &&
+        !d.missing_students &&
+        d.items.some(
+          (i) => !i.student && !items.find((j) => j.id === i.id).not_used,
+        )
+      )
+        fail(400, "Preencha os alunos ou selecione Nomes não registrados.");
+      for (const item of d.items) {
+        const old = items.find((i) => i.id === item.id);
+        if (
+          d.close &&
+          l.status === "EM_USO" &&
+          item.status !== old.departure_status &&
+          !item.comment
+        )
+          fail(400, "Explique as alterações de estado.");
+        await run(
+          "UPDATE loan_items SET student=?,not_used=? WHERE id=?",
+          item.student,
+          item.student ? 0 : old.not_used,
+          item.id,
+        );
+        if (d.close && l.status === "EM_USO") {
+          await run(
+            "UPDATE loan_items SET return_status=?,ti_comment=? WHERE id=?",
+            item.status,
+            item.comment,
+            item.id,
+          );
+          await run(
+            "UPDATE devices SET status=? WHERE id=?",
+            item.status,
+            old.device_id,
+          );
+        }
+      }
+      if (!signed && (advance || d.image))
+        await run(
+          "INSERT INTO signatures VALUES(?,?,?,?,?,?)",
+          id(),
+          l.id,
+          l.teacher_id,
+          "PROFESSOR",
+          advance?.image || d.image,
+          advance?.signed_at || now(),
+        );
+      await run(
+        "INSERT INTO loan_corrections VALUES(?,?,?,?,?,?,?) ON CONFLICT(loan_id) DO UPDATE SET actor_id=excluded.actor_id,reason=excluded.reason,missing_students=excluded.missing_students,unsigned=excluded.unsigned,closed=excluded.closed,updated_at=excluded.updated_at",
+        l.id,
+        req.user.id,
+        d.reason,
+        d.missing_students ? 1 : 0,
+        d.unsigned ? 1 : 0,
+        d.close ? 1 : 0,
+        now(),
+      );
+      if (d.close) {
+        await run(
+          "UPDATE loans SET status='CONCLUIDA',returned_at=COALESCE(returned_at,?) WHERE id=?",
+          now(),
+          l.id,
+        );
+        await run(
+          "UPDATE appointments SET status='CONCLUIDO' WHERE id=?",
+          l.appointment_id,
+        );
+        await resolveNotifications(l.id);
+      }
+      await audit(req.user, "REGULARIZAR_MOVIMENTACAO", l.id, {
+        reason: d.reason,
+        missing_students: d.missing_students,
+        unsigned: d.unsigned,
+        closed: d.close,
+        signature_recorded: !!d.image,
+        previous_items: items,
+      });
+      await notify(
+        l.teacher_id,
+        "Movimentação regularizada",
+        `${req.user.name} registrou uma correção: ${d.reason}`,
+        "reports",
         l.id,
       );
     });

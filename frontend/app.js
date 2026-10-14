@@ -854,7 +854,7 @@ function loanCards(list) {
     list
       .map(
         (l) =>
-          `<div class="loan-card"><div class="section-head"><b>${h(l.class_name)} • ${h(l.teacher.name)}</b>${status(l.status)}</div><p class="muted">${l.items.length} dispositivos • saída ${fmt(l.departed_at)}</p>${button(l.status === "AGUARDANDO_ASSINATURAS" ? "Ver relatório" : "Abrir movimentação", `data-loan="${l.id}"`, "primary")}</div>`,
+          `<div class="loan-card"><div class="section-head"><b>${h(l.class_name)} • ${h(l.teacher.name)}</b>${status(l.status)}</div><p class="muted">${l.items.length} dispositivos • saída ${fmt(l.departed_at)}</p>${button(l.status === "AGUARDANDO_ASSINATURAS" ? "Ver relatório" : "Abrir movimentação", `data-loan="${l.id}"`, "primary")}${operates() && ["EM_USO", "AGUARDANDO_ASSINATURAS"].includes(l.status) ? `<div class="toolbar section">${button("Editar alunos / assinatura", `data-regularize="${l.id}" data-mode="edit"`)}${button("Nomes não registrados", `data-regularize="${l.id}" data-mode="students"`)}${button("Não assinado", `data-regularize="${l.id}" data-mode="unsigned"`)}${button("Não registrado e não assinado", `data-regularize="${l.id}" data-mode="both"`)}</div>` : ""}</div>`,
       )
       .join("") || empty("Nenhuma movimentação neste momento.")
   );
@@ -867,6 +867,83 @@ function loans() {
     ) +
     `<div class="card">${loanCards(state.loans.filter((l) => l.status !== "CONCLUIDA"))}</div>`
   );
+}
+function regularizeModal(l, mode) {
+  const hasSignature =
+    l.signatures.some((s) => s.type === "PROFESSOR") ||
+    state.appointments.find((a) => a.id === l.appointment_id)
+      ?.advance_signature;
+  modal(
+    `<h3>Editar movimentação • ${h(l.teacher.name)}</h3><p>Registre os alunos e, se necessário, peça ao professor que assine abaixo. O registro identificará sua conta como responsável pela correção.</p><form id="regularizeForm">${table(
+      ["Dispositivo", "Aluno", "Estado de retorno", "Observação"],
+      l.items.map(
+        (i) =>
+          `<tr><td>${h(i.number)}</td><td><input data-reg-student="${i.id}" value="${h(i.student)}" maxlength="200" aria-label="Aluno ${h(i.number)}">${i.not_used ? "Não usei" : ""}</td><td><select data-reg-status="${i.id}" ${l.status === "AGUARDANDO_ASSINATURAS" ? "disabled" : ""}>${options(["BOM_ESTADO", "CONSERVADO", "EM_MANUTENCAO", "QUEBRADO"], i.return_status || i.departure_status)}</select></td><td><input data-reg-comment="${i.id}" value="${h(i.ti_comment)}" maxlength="2000"></td></tr>`,
+      ),
+    )}
+  <label><input id="missingStudents" type="checkbox" ${["students", "both"].includes(mode) ? "checked" : ""}> Nomes não registrados (preserva os nomes já preenchidos)</label><br>
+  <label><input id="unsigned" type="checkbox" ${hasSignature ? "disabled" : ["unsigned", "both"].includes(mode) ? "checked" : ""}> Não assinado pelo professor</label>
+  ${hasSignature ? "<p>A assinatura existente será preservada.</p>" : '<h4>Assinatura do professor (opcional ao editar)</h4><canvas id="regSignature" class="signature-pad" aria-label="Assinatura do professor"></canvas><button type="button" class="btn" id="clearRegSignature">Limpar assinatura</button>'}
+  ${field("Motivo da correção", '<textarea name="reason" minlength="5" maxlength="2000" required></textarea>')}
+  <label><input id="closeMovement" type="checkbox" ${mode !== "edit" ? "checked" : ""}> Encerrar movimentação</label><br>
+  <label><input id="confirmReturn" type="checkbox"> Conferi fisicamente a devolução de todos os aparelhos</label><p>O encerramento disponibiliza os aparelhos em bom estado e conserva os que estão quebrados ou em manutenção. Fica registrado como encerramento pela equipe, sem inventar assinaturas ausentes.</p><button class="btn primary">Salvar correção</button></form>`,
+    true,
+  );
+  const c = $("#regSignature");
+  let signed = false;
+  if (c) {
+    c.width = Math.round(c.getBoundingClientRect().width);
+    c.height = 180;
+    const ctx = c.getContext("2d");
+    ctx.lineWidth = 2;
+    let drawing = false;
+    const pos = (e) => {
+      const r = c.getBoundingClientRect();
+      return [
+        ((e.clientX - r.left) * c.width) / r.width,
+        ((e.clientY - r.top) * c.height) / r.height,
+      ];
+    };
+    c.onpointerdown = (e) => {
+      drawing = true;
+      c.setPointerCapture(e.pointerId);
+      ctx.beginPath();
+      ctx.moveTo(...pos(e));
+    };
+    c.onpointermove = (e) => {
+      if (drawing) {
+        ctx.lineTo(...pos(e));
+        ctx.stroke();
+        signed = true;
+      }
+    };
+    c.onpointerup = c.onpointercancel = () => (drawing = false);
+    $("#clearRegSignature").onclick = () => {
+      ctx.clearRect(0, 0, c.width, c.height);
+      signed = false;
+    };
+  }
+  $("#regularizeForm").onsubmit = action(async (e) => {
+    await api(`/loans/${l.id}/regularize`, {
+      method: "PATCH",
+      body: {
+        reason: formValue(e.currentTarget).reason,
+        missing_students: $("#missingStudents").checked,
+        unsigned: $("#unsigned").checked,
+        close: $("#closeMovement").checked,
+        confirmed_return: $("#confirmReturn").checked,
+        ...(signed ? { image: c.toDataURL("image/png") } : {}),
+        items: l.items.map((i) => ({
+          id: i.id,
+          student: $(`[data-reg-student="${i.id}"]`).value,
+          status: $(`[data-reg-status="${i.id}"]`).value,
+          comment: $(`[data-reg-comment="${i.id}"]`).value,
+        })),
+      },
+    });
+    await refresh();
+    toast("Movimentação atualizada.");
+  });
 }
 function loanModal(l) {
   if (["AGUARDANDO_ASSINATURAS", "CONCLUIDA"].includes(l.status))
@@ -986,7 +1063,7 @@ function reports() {
   return (
     hero(
       "Relatórios e assinaturas",
-      "Confira os dados antes de assinar. Cada usuário registra apenas a própria assinatura.",
+      "Confira os dados antes de assinar. Correções e assinaturas coletadas pela equipe ficam identificadas no relatório.",
     ) +
     `<div class="card">${loanCards(state.loans.filter((l) => ["AGUARDANDO_ASSINATURAS", "CONCLUIDA"].includes(l.status)))}</div>`
   );
@@ -1025,7 +1102,7 @@ function reportModal(l) {
         (i) =>
           `<tr><td>${h(i.number)}</td><td>${h(i.not_used ? "Não usei" : i.student)}</td><td>${h(labels[i.departure_status])}</td><td>${h(labels[i.return_status] || "—")}</td><td class="wrap-cell">${h(i.ti_comment)}</td></tr>`,
       ),
-    )}<h3>Relato do professor</h3><p class="wrap-cell">${h(l.report)}</p><div class="signature-grid">${[
+    )}${l.correction ? `<div class="notice"><b>${l.correction.closed ? "Encerramento pela equipe" : "Correção pela equipe"}</b><p>${h(l.correction.actor_name)} • ${fmt(l.correction.updated_at)}</p><p>${h(l.correction.reason)}</p>${l.correction.missing_students ? "<p>Nomes não registrados nos aparelhos sem aluno informado.</p>" : ""}${l.correction.unsigned ? "<p>Não assinado pelo professor.</p>" : ""}<p>Assinaturas eventualmente coletadas nesta correção foram registradas pela equipe identificada acima.</p></div>` : ""}<h3>Relato do professor</h3><p class="wrap-cell">${h(l.report)}</p><div class="signature-grid">${[
       "PROFESSOR",
       "TI",
     ]
@@ -1034,7 +1111,7 @@ function reportModal(l) {
           type === "PROFESSOR" && advance
             ? { ...advance, name: l.teacher.name }
             : l.signatures.find((s) => s.type === type);
-        return `<div class="signature-card"><b>Assinatura ${labels[type]}</b>${s ? `<img class="signature-image" src="${h(s.image)}" alt="Assinatura ${labels[type]}"><small>${h(s.name)} • ${fmt(s.signed_at)}${type === "PROFESSOR" && advance ? " • Registrada no agendamento" : ""}</small>` : '<p class="muted">Pendente</p>'}</div>`;
+        return `<div class="signature-card"><b>Assinatura ${labels[type]}</b>${s ? `<img class="signature-image" src="${h(s.image)}" alt="Assinatura ${labels[type]}"><small>${h(s.name)} • ${fmt(s.signed_at)}${type === "PROFESSOR" && advance ? " • Registrada no agendamento" : ""}</small>` : `<p class="muted">${l.correction?.closed ? "Não assinado" : "Pendente"}</p>`}</div>`;
       })
       .join(
         "",
@@ -1203,6 +1280,14 @@ async function notifications() {
   );
 }
 function bindTables() {
+  $$("[data-regularize]").forEach(
+    (b) =>
+      (b.onclick = () =>
+        regularizeModal(
+          state.loans.find((l) => l.id === b.dataset.regularize),
+          b.dataset.mode,
+        )),
+  );
   $$("[data-loan]").forEach(
     (b) =>
       (b.onclick = () =>
