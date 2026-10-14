@@ -118,7 +118,26 @@ test("ciclo escolar completo pelas telas e layout móvel", async ({ page }) => {
   await page.getByLabel("Quantidade — Notebook", { exact: true }).fill("1");
   await expect(page.locator("#requestTotal")).toContainText("Total: 2 / 25");
   await page.getByLabel("Fazer adiantamento da assinatura após salvar").check();
-  await page.getByRole("button", { name: "Salvar agendamento" }).click();
+  let appointmentPosts = 0;
+  const countAppointmentPosts = (request) => {
+    if (
+      request.method() === "POST" &&
+      new URL(request.url()).pathname === "/api/appointments"
+    )
+      appointmentPosts++;
+  };
+  page.on("request", countAppointmentPosts);
+  await page.locator("#appointmentForm").evaluate((form) => {
+    form.dispatchEvent(
+      new Event("submit", { bubbles: true, cancelable: true }),
+    );
+    form.dispatchEvent(
+      new Event("submit", { bubbles: true, cancelable: true }),
+    );
+  });
+  await expect(page.locator("#advanceCanvas")).toBeVisible();
+  expect(appointmentPosts).toBe(1);
+  page.off("request", countAppointmentPosts);
   await expect(
     page.getByRole("heading", {
       name: "Adiantamento da assinatura",

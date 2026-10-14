@@ -1019,6 +1019,45 @@ test("TI regulariza ausências com conferência e assinatura identificada, sem a
     }
   }
 });
+test("envios simultâneos e repetidos criam um único agendamento", async () => {
+  const body = {
+    request_id: "8dbaea9e-4e31-4af4-b023-6b01caebfa53",
+    teacher_id: teacher.id,
+    date: today(),
+    class_name: "Teste envio único",
+    items: [{ type: "TABLET", quantity: 1 }],
+  };
+  const responses = await Promise.all([
+    admin("/api/appointments", "POST", body),
+    admin("/api/appointments", "POST", body),
+  ]);
+  assert.deepEqual(responses.map((r) => r.status).sort(), [200, 201]);
+  assert.equal(responses[0].data.id, responses[1].data.id);
+  const replay = await admin("/api/appointments", "POST", body);
+  assert.equal(replay.status, 200);
+  assert.equal(replay.data.id, responses[0].data.id);
+  assert.equal(
+    (await admin("/api/appointments")).data.filter(
+      (a) => a.class_name === body.class_name,
+    ).length,
+    1,
+  );
+  assert.equal(
+    (
+      await admin("/api/appointments", "POST", {
+        ...body,
+        class_name: "Dados alterados",
+      })
+    ).status,
+    409,
+  );
+  const distinct = await admin("/api/appointments", "POST", {
+    ...body,
+    request_id: "8dbaea9e-4e31-4af4-b023-6b01caebfa54",
+  });
+  assert.equal(distinct.status, 201);
+  assert.notEqual(distinct.data.id, replay.data.id);
+});
 test("senha, desativação e logout encerram acesso", async () => {
   assert.equal(
     (

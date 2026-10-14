@@ -1045,7 +1045,7 @@ export function createApp({
   };
   app.post("/api/appointments", async (req, res) => {
     mustSchedule(req.user);
-    await mustUnblocked(req.user);
+
     const d = {
       ...appointmentSchema.parse(req.body),
       ...parseItems(req.body, 25),
@@ -1059,7 +1059,12 @@ export function createApp({
       teacherId,
     );
     if (!u) fail(400, "Selecione um professor ativo.");
-    const aId = id();
+    const requestId = z.string().uuid().optional().parse(req.body.request_id);
+    const payloadHash = createHash("sha256")
+      .update(JSON.stringify({ teacherId, ...d }))
+      .digest("hex");
+    let aId = id(),
+      replayed = false;
     const createdAt = now();
     const recordedTime = new Intl.DateTimeFormat("pt-BR", {
       timeZone: "America/Sao_Paulo",
@@ -1068,6 +1073,24 @@ export function createApp({
       hourCycle: "h23",
     }).format(new Date(createdAt));
     await transaction(db, async () => {
+      if (requestId) {
+        const previous = await get(
+          "SELECT * FROM appointment_requests WHERE user_id=? AND request_id=?",
+          req.user.id,
+          requestId,
+        );
+        if (previous) {
+          if (previous.payload_hash !== payloadHash)
+            fail(
+              409,
+              "Este envio já foi salvo com outros dados. Atualize os agendamentos antes de editar.",
+            );
+          aId = previous.appointment_id;
+          replayed = true;
+          return;
+        }
+      }
+      await mustUnblocked(req.user);
       await run(
         "INSERT INTO appointments(id,teacher_id,date,time,class_name,type,quantity,created_at) VALUES(?,?,?,?,?,?,?,?)",
         aId,
@@ -1079,6 +1102,14 @@ export function createApp({
         d.quantity,
         createdAt,
       );
+      if (requestId)
+        await run(
+          "INSERT INTO appointment_requests VALUES(?,?,?,?)",
+          req.user.id,
+          requestId,
+          payloadHash,
+          aId,
+        );
       await saveItems(aId, "INITIAL", d.items);
       await notifyStaff(
         "Novo agendamento",
@@ -1088,7 +1119,7 @@ export function createApp({
       );
       await audit(req.user, "CRIAR_AGENDAMENTO", aId);
     });
-    res.status(201).json(await appointment(aId));
+    res.status(replayed ? 200 : 201).json(await appointment(aId));
   });
   app.patch("/api/appointments/:id", async (req, res) => {
     mustSchedule(req.user);

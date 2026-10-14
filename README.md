@@ -235,3 +235,7 @@ TI e gerente podem usar **Editar alunos / assinatura** em movimentações **Em u
 Os atalhos **Nomes não registrados**, **Não assinado** e **Não registrado e não assinado** preparam o encerramento excepcional. É obrigatório explicar o motivo e confirmar a devolução física de todos os aparelhos. Em uso, a equipe informa o estado de retorno de cada aparelho e justifica alterações. Em aguardando assinaturas, a conferência já existente é preservada, sem alterar o estado atual dos aparelhos que possam ter sido emprestados novamente.
 
 O encerramento vai para o histórico e remove a pendência do professor. Os equipamentos em bom estado ficam disponíveis; os quebrados ou em manutenção continuam indisponíveis. Nomes existentes são preservados e faltas são descritas explicitamente. Não é gerada assinatura fictícia para professor ou TI: o relatório identifica o encerramento pela equipe. Professor e administrador comum não têm acesso a essa operação. Movimentações concluídas não podem ser reabertas por este fluxo.
+
+### Proteção contra agendamentos duplicados
+
+O formulário bloqueia novos envios enquanto está salvando. Cada formulário de novo agendamento também possui um identificador de envio: se a mesma tentativa chegar novamente ao servidor, inclusive simultaneamente, ele retorna o registro já criado. Um formulário novo permite um novo pedido intencional. Essa proteção não cancela registros antigos automaticamente; duplicatas antigas podem ser canceladas pela equipe após conferir qual pedido será utilizado.

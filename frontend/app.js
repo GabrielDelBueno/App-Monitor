@@ -98,16 +98,32 @@ async function api(path, { method = "GET", body } = {}) {
   return data;
 }
 function action(fn) {
+  let running = false;
   return async (e) => {
     e?.preventDefault();
-    const button = e?.currentTarget;
-    if (button?.tagName === "BUTTON") button.disabled = true;
+    if (running) return;
+    running = true;
+    const target = e?.currentTarget;
+    const buttons =
+      target?.tagName === "FORM"
+        ? [
+            ...target.querySelectorAll(
+              'button[type="submit"], button:not([type]), input[type="submit"]',
+            ),
+          ].filter((b) => !b.disabled)
+        : target?.tagName === "BUTTON"
+          ? [target]
+          : [];
+    buttons.forEach((b) => (b.disabled = true));
     try {
       await fn(e);
     } catch (error) {
       toast(error.message);
     } finally {
-      if (button?.isConnected) button.disabled = false;
+      running = false;
+      buttons.forEach((b) => {
+        if (b.isConnected) b.disabled = false;
+      });
     }
   };
 }
@@ -593,9 +609,11 @@ function appointmentModal(existing) {
     true,
   );
   bindChoices($("#appointmentForm"), 25);
+  const requestId = crypto.randomUUID();
   $("#appointmentForm").onsubmit = action(async (e) => {
     const body = formValue(e.currentTarget);
     body.items = readChoices(e.currentTarget);
+    if (!existing) body.request_id = requestId;
     const saved = await api(
       existing ? `/appointments/${a.id}` : "/appointments",
       {
