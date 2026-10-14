@@ -138,7 +138,9 @@ test("ciclo escolar completo pelas telas e layout móvel", async ({ page }) => {
   await logout(page);
   await login(page, "ti@browser.local");
   await page.getByRole("button", { name: "Agendamentos", exact: true }).click();
-  await page.getByRole("button", { name: "Aprovar", exact: true }).click();
+  await expect(
+    page.getByRole("button", { name: "Aprovar", exact: true }),
+  ).toHaveCount(0);
   await expect(
     page.getByRole("button", { name: "Liberar", exact: true }),
   ).toBeVisible();
@@ -201,7 +203,9 @@ test("ciclo escolar completo pelas telas e layout móvel", async ({ page }) => {
   await logout(page);
   await login(page, "ti@browser.local");
   await page.getByRole("button", { name: "Agendamentos", exact: true }).click();
-  await page.getByRole("button", { name: "Aprovar", exact: true }).click();
+  await expect(
+    page.getByRole("button", { name: "Aprovar", exact: true }),
+  ).toHaveCount(0);
   await page.getByRole("button", { name: "Liberar", exact: true }).click();
   await page.locator("#reuseLoan").selectOption({ index: 1 });
   await page

@@ -83,14 +83,14 @@ O administrador mantém **Usuários**, com **Editar** para nome, e-mail e perfil
 
 1. Cadastre professores, TI e equipamentos. A tela de inventário gera etiquetas QR para impressão.
 2. O professor escolhe um ou mais tipos (tablet, notebook, Chromebook e celular), informa a quantidade de cada um e solicita entre 1 e 25 dispositivos no total para uma data entre hoje e os próximos 14 dias. Datas são interpretadas no fuso `America/Sao_Paulo`.
-3. TI aprova e libera a quantidade exata no dia agendado. Equipamentos em uso, manutenção ou quebrados não podem ser liberados. A seleção pode usar câmera, leitor USB, entrada manual ou caixas de seleção. A câmera requer HTTPS ou um contexto local autorizado.
+3. TI libera diretamente a quantidade exata, sem aprovação prévia, no dia agendado. Equipamentos em uso, manutenção ou quebrados não podem ser liberados. A seleção pode usar câmera, leitor USB, entrada manual ou caixas de seleção. A câmera requer HTTPS ou um contexto local autorizado.
 4. O professor associa alunos a todos os aparelhos. Pode fazer um único pedido extra de até 5 aparelhos; TI libera esses extras separadamente.
 5. O professor envia o relato obrigatório de devolução. Até a conferência física, os aparelhos continuam indisponíveis.
 6. TI confere todos os itens e registra comentários quando o estado muda. A conferência atualiza o inventário e libera os aparelhos em bom estado para outras aulas.
 7. A assinatura antecipada do professor é aproveitada no relatório; sem antecipação, ele assina pela própria conta após a conferência. O TI assina pela própria conta. O relatório é concluído quando tem as duas assinaturas. Um professor com relatório conferido e ainda sem sua assinatura fica impedido de criar pedidos ou receber novas liberações.
 8. Consulte o histórico e use **Imprimir / salvar PDF** para exportar pelo diálogo de impressão do navegador.
 
-Pedidos podem ser editados ou cancelados antes da liberação; editar exige nova aprovação. A exclusão de equipamento é lógica, preservando os registros anteriores. Usuários podem ser desativados pelo administrador, encerrando suas sessões. A auditoria registra ações administrativas e operacionais.
+Pedidos podem ser editados ou cancelados antes da liberação; editar exige nova assinatura antecipada quando obrigatória, mas não aprovação. A exclusão de equipamento é lógica, preservando os registros anteriores. Usuários podem ser desativados pelo administrador, encerrando suas sessões. A auditoria registra ações administrativas e operacionais.
 
 ## Verificação
 
@@ -210,7 +210,7 @@ Ao agendar, o professor deve fazer o adiantamento da assinatura por padrão. Se 
 
 O horário do agendamento é registrado automaticamente pelo servidor ao criar o pedido, no fuso America/Sao_Paulo. A data da aula continua sendo escolhida pelo professor. Editar o pedido preserva o horário original; agendamentos anteriores não são alterados.
 
-A antecipação de assinatura é obrigatória por padrão. Somente gerentes alteram a exigência em **Conta → Configuração da escola**. A configuração é persistente e vale para todos os pedidos pendentes/aprovados: quando ativa, aprovação e liberação exigem antecipação do professor. Pedidos já em uso não são bloqueados retroativamente por essa exigência. O professor recebe a tela de pendências enquanto não completar a antecipação; quem antecipou não precisa assinar novamente ao final. Em Conta, o olhinho revela apenas o conteúdo digitado no campo Senha atual; nenhuma senha armazenada é recuperada ou enviada ao navegador.
+A antecipação de assinatura é obrigatória por padrão. Somente gerentes alteram a exigência em **Conta → Configuração da escola**. A configuração é persistente e vale para todos os pedidos pendentes/aprovados: quando ativa, a liberação exige antecipação do professor. Pedidos já em uso não são bloqueados retroativamente por essa exigência. O professor recebe a tela de pendências enquanto não completar a antecipação; quem antecipou não precisa assinar novamente ao final. Em Conta, o olhinho revela apenas o conteúdo digitado no campo Senha atual; nenhuma senha armazenada é recuperada ou enviada ao navegador.
 
 Ao consultar notificações, o servidor também arquiva alertas antigos cujas tarefas já foram concluídas (associações de alunos, extras, aprovação, conferência e assinaturas), preservando as pendências reais. As etiquetas impressas exibem o controle interno e o número de série cadastrado; o texto técnico do QR deixa de ser impresso, mas o conteúdo do QR e a leitura dos aparelhos permanecem iguais.
 
@@ -221,3 +221,9 @@ TI e gerente podem usar **Movimentações e retorno → Abrir movimentação →
 Correção da planilha da escola: os 25 Samsung com modelo explicitamente igual a Chromebook foram classificados como Notebook na importação antiga. Ao iniciar esta versão, o banco corrige esse tipo preservando IDs, séries, QR e vínculos. Na planilha original são 25 Chromebooks e 27 notebooks.
 
 O leitor prioriza a faixa central da mira, solicita câmera em Full HD quando disponível, usa autofoco contínuo quando suportado e tenta rotação para barras verticais. Inclui Code 93, além de Code 128, Code 39 e QR. Etiquetas desfocadas, com brilho, danificadas ou pequenas demais podem continuar exigindo ajuste de distância/ângulo; a leitura não recupera barras fisicamente ilegíveis. Os testes usam séries fictícias em Code 128 e Code 93.
+
+### Liberação direta e desempenho
+
+Agendamentos pendentes e os aprovados anteriormente aparecem como “Aguardando liberação”. O TI ou gerente entrega os aparelhos diretamente, respeitando data, quantidades, disponibilidade e assinatura obrigatória. A rota antiga de aprovação permanece apenas para compatibilidade com telas antigas abertas.
+
+As listas de agendamentos e movimentações usam três consultas cada, independentemente do número de registros, em vez de consultas individuais para cada registro. A validação de disponibilidade dos aparelhos também ocorre em lote. A fila de segurança das operações foi mantida para impedir liberações simultâneas do mesmo aparelho. A suspensão por inatividade da hospedagem gratuita continua podendo causar espera no primeiro acesso.

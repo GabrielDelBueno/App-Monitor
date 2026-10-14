@@ -168,7 +168,7 @@ export function createApp({
     if ((await advanceRequired()) && !a.advance_signature)
       fail(
         409,
-        "O professor precisa antecipar a assinatura antes da aprovação ou liberação.",
+        "O professor precisa antecipar a assinatura antes da liberação.",
       );
   };
   const staff = (u) => ["TI", "ADMINISTRADOR", "GERENTE"].includes(u.role);
@@ -293,24 +293,23 @@ export function createApp({
       "SELECT i.id FROM loan_items i JOIN loans l ON l.id=i.loan_id WHERE i.device_id=? AND l.status IN ('EM_USO','AGUARDANDO_DEVOLUCAO')",
       deviceId,
     ));
-  const validateDevices = async (ids, type) =>
-    await Promise.all(
-      ids.map(async (deviceId) => {
-        const d = await get(
-          "SELECT * FROM devices WHERE id=? AND active=1",
-          deviceId,
-        );
-        if (!d) fail(404, "Dispositivo não encontrado.");
-        if (type && d.type !== type)
-          fail(409, "Tipo incompatível com o agendamento.");
-        if (
-          ["QUEBRADO", "EM_MANUTENCAO"].includes(d.status) ||
-          !(await available(deviceId))
-        )
-          fail(409, `Dispositivo ${d.number} indisponível.`);
-        return d;
-      }),
+  const validateDevices = async (ids, type) => {
+    if (!ids.length) return [];
+    const rows = await all(
+      `SELECT d.*,EXISTS(SELECT 1 FROM loan_items i JOIN loans l ON l.id=i.loan_id WHERE i.device_id=d.id AND l.status IN ('EM_USO','AGUARDANDO_DEVOLUCAO')) AS in_use FROM devices d WHERE d.active=1 AND d.id IN (${ids.map(() => "?").join(",")})`,
+      ...ids,
     );
+    const devices = new Map(rows.map((d) => [d.id, d]));
+    return ids.map((deviceId) => {
+      const d = devices.get(deviceId);
+      if (!d) fail(404, "Dispositivo não encontrado.");
+      if (type && d.type !== type)
+        fail(409, "Tipo incompatível com o agendamento.");
+      if (["QUEBRADO", "EM_MANUTENCAO"].includes(d.status) || d.in_use)
+        fail(409, `Dispositivo ${d.number} indisponível.`);
+      return d;
+    });
+  };
   const fullLoan = async (l) => ({
     ...l,
     teacher: await get(
@@ -973,18 +972,62 @@ export function createApp({
     });
     res.status(204).end();
   });
-  app.get("/api/appointments", async (req, res) =>
-    res.json(
-      await Promise.all(
-        (
-          await all(
-            `SELECT a.*,u.name AS teacher_name FROM appointments a JOIN users u ON u.id=a.teacher_id ${staff(req.user) ? "" : "WHERE a.teacher_id=?"} ORDER BY date DESC,time DESC`,
-            ...(staff(req.user) ? [] : [req.user.id]),
-          )
-        ).map(withItems),
+  const groupBy = (rows, key) => {
+    const groups = new Map();
+    for (const row of rows) {
+      if (!groups.has(row[key])) groups.set(row[key], []);
+      groups.get(row[key]).push(row);
+    }
+    return groups;
+  };
+  app.get("/api/appointments", async (req, res) => {
+    const scope = staff(req.user) ? "" : "WHERE a.teacher_id=?";
+    const params = staff(req.user) ? [] : [req.user.id];
+    const [appointments, items, signatures] = await Promise.all([
+      all(
+        `SELECT a.*,u.name AS teacher_name FROM appointments a JOIN users u ON u.id=a.teacher_id ${scope} ORDER BY date DESC,time DESC`,
+        ...params,
       ),
-    ),
-  );
+      all(
+        `SELECT i.* FROM appointment_items i JOIN appointments a ON a.id=i.appointment_id ${scope} ORDER BY i.type`,
+        ...params,
+      ),
+      all(
+        `SELECT s.appointment_id,s.image,s.signed_at FROM advance_signatures s JOIN appointments a ON a.id=s.appointment_id ${scope}`,
+        ...params,
+      ),
+    ]);
+    const grouped = groupBy(items, "appointment_id");
+    const signed = new Map(
+      signatures.map((s) => [
+        s.appointment_id,
+        { image: s.image, signed_at: s.signed_at },
+      ]),
+    );
+    res.json(
+      appointments.map((a) => {
+        const rows = grouped.get(a.id) || [];
+        const initial = rows
+          .filter((i) => i.kind === "INITIAL")
+          .map(({ type, quantity }) => ({ type, quantity }));
+        const extras = rows
+          .filter((i) => i.kind === "EXTRA")
+          .map(({ type, quantity }) => ({ type, quantity }));
+        return {
+          ...a,
+          items: initial.length
+            ? initial
+            : [{ type: a.type, quantity: a.quantity }],
+          extra_items: extras.length
+            ? extras
+            : a.extras
+              ? [{ type: a.type, quantity: a.extras }]
+              : [],
+          advance_signature: signed.get(a.id),
+        };
+      }),
+    );
+  });
   const appointmentSchema = z.object({
     date: z.iso.date(),
     class_name: text,
@@ -1158,18 +1201,35 @@ export function createApp({
       ok: true,
     });
   });
-  app.get("/api/loans", async (req, res) =>
-    res.json(
-      await Promise.all(
-        (
-          await all(
-            `SELECT * FROM loans ${staff(req.user) ? "" : "WHERE teacher_id=?"} ORDER BY departed_at DESC`,
-            ...(staff(req.user) ? [] : [req.user.id]),
-          )
-        ).map(fullLoan),
+  app.get("/api/loans", async (req, res) => {
+    const scope = staff(req.user) ? "" : "WHERE l.teacher_id=?";
+    const params = staff(req.user) ? [] : [req.user.id];
+    const [loans, items, signatures] = await Promise.all([
+      all(
+        `SELECT l.*,u.name AS teacher_name,u.email AS teacher_email,t.name AS ti_name FROM loans l JOIN users u ON u.id=l.teacher_id JOIN users t ON t.id=l.ti_id ${scope} ORDER BY l.departed_at DESC`,
+        ...params,
       ),
-    ),
-  );
+      all(
+        `SELECT i.*,d.number,d.qr,d.type FROM loan_items i JOIN devices d ON d.id=i.device_id JOIN loans l ON l.id=i.loan_id ${scope} ORDER BY d.number`,
+        ...params,
+      ),
+      all(
+        `SELECT s.*,u.name FROM signatures s JOIN users u ON u.id=s.user_id JOIN loans l ON l.id=s.loan_id ${scope}`,
+        ...params,
+      ),
+    ]);
+    const groupedItems = groupBy(items, "loan_id");
+    const groupedSignatures = groupBy(signatures, "loan_id");
+    res.json(
+      loans.map(({ teacher_name, teacher_email, ti_name, ...l }) => ({
+        ...l,
+        teacher: { id: l.teacher_id, name: teacher_name, email: teacher_email },
+        ti: { id: l.ti_id, name: ti_name },
+        items: groupedItems.get(l.id) || [],
+        signatures: groupedSignatures.get(l.id) || [],
+      })),
+    );
+  });
   app.post("/api/loans", async (req, res) => {
     mustOperate(req.user);
     const d = z
@@ -1182,8 +1242,8 @@ export function createApp({
       await transaction(db, async () => {
         const a = await appointment(d.appointment_id);
         await requireAdvance(a);
-        if (a.status !== "APROVADO")
-          fail(409, "Aprove o agendamento antes de liberar.");
+        if (!["PENDENTE", "APROVADO"].includes(a.status))
+          fail(409, "Agendamento encerrado ou em uso.");
         if (a.date !== today())
           fail(409, "A liberação deve ocorrer no dia agendado.");
         const teacher = await get(

@@ -19,7 +19,7 @@ const labels = {
   EM_MANUTENCAO: "Em manutenção",
   QUEBRADO: "Quebrado",
   PENDENTE: "Pendente",
-  APROVADO: "Aprovado",
+  APROVADO: "Aguardando liberação",
   EM_USO: "Em uso",
   CONCLUIDO: "Concluído",
   CANCELADO: "Cancelado",
@@ -481,7 +481,7 @@ function dashboard() {
         .slice(0, 5)
         .map(
           (a) =>
-            `<div class="timeline item"><b>${date(a.date)} • ${h(a.time)}</b><p>${h(a.teacher_name)} • ${h(a.class_name)}</p>${status(a.status)}</div>`,
+            `<div class="timeline item"><b>${date(a.date)} • ${h(a.time)}</b><p>${h(a.teacher_name)} • ${h(a.class_name)}</p>${["PENDENTE", "APROVADO"].includes(a.status) ? status("APROVADO") : status(a.status)}</div>`,
         )
         .join("") || empty("Não há aulas agendadas.")
     }</div></div>`
@@ -507,7 +507,7 @@ function appointments() {
       ],
       state.appointments.map(
         (a) =>
-          `<tr><td>${date(a.date)} • ${h(a.time)}</td><td>${h(a.teacher_name)}</td><td>${h(a.class_name)}</td><td>${h(requestSummary(a))}${a.extras ? ` + ${a.extras} extras` : ""}</td><td>${status(a.status)}</td><td><div class="toolbar">${schedules() && ["PENDENTE", "APROVADO"].includes(a.status) ? button("Editar", `data-edit-appointment="${a.id}"`) + button("Cancelar", `data-cancel="${a.id}"`, "danger") : ""}${a.teacher_id === state.user.id && ["PENDENTE", "APROVADO"].includes(a.status) ? button(a.advance_signature ? "Ver antecipação" : "Antecipar assinatura", `data-advance="${a.id}"`) : ""}${staff() && a.status === "PENDENTE" ? button("Aprovar", `data-approve="${a.id}"`, "success") : ""}${operates() && a.status === "APROVADO" ? button("Liberar", `data-release="${a.id}"`, "primary") : ""}</div></td></tr>`,
+          `<tr><td>${date(a.date)} • ${h(a.time)}</td><td>${h(a.teacher_name)}</td><td>${h(a.class_name)}</td><td>${h(requestSummary(a))}${a.extras ? ` + ${a.extras} extras` : ""}</td><td>${["PENDENTE", "APROVADO"].includes(a.status) ? status("APROVADO") : status(a.status)}</td><td><div class="toolbar">${schedules() && ["PENDENTE", "APROVADO"].includes(a.status) ? button("Editar", `data-edit-appointment="${a.id}"`) + button("Cancelar", `data-cancel="${a.id}"`, "danger") : ""}${a.teacher_id === state.user.id && ["PENDENTE", "APROVADO"].includes(a.status) ? button(a.advance_signature ? "Ver antecipação" : "Antecipar assinatura", `data-advance="${a.id}"`) : ""}${operates() && ["PENDENTE", "APROVADO"].includes(a.status) ? button("Liberar", `data-release="${a.id}"`, "primary") : ""}</div></td></tr>`,
       ),
     )}</div>`
   );
@@ -589,7 +589,7 @@ function appointmentModal(existing) {
               .join("")}</select>`,
           )
         : ""
-    }${field("Data", `<input type="date" name="date" min="${localToday()}" max="${end.toISOString().slice(0, 10)}" value="${a.date}" required>`)}${field("Turma", `<input name="class_name" value="${h(a.class_name)}" maxlength="200" required>`)}</div>${deviceChoices(existing ? requestItems(a) : [], 25)}<p class="muted">${existing ? `Horário registrado: ${h(a.time)} (São Paulo).` : "O horário será registrado automaticamente ao salvar, no fuso de São Paulo."}</p><p class="muted">Ao editar, o pedido volta para aprovação e o pedido de extras é reiniciado.</p>${state.user.role === "PROFESSOR" ? (state.user.advanceRequired ? "<p><b>O adiantamento da assinatura é obrigatório após salvar.</b></p><p>Preencha os nomes dos alunos após receber os dispositivos.</p>" : '<label><input type="checkbox" name="advance" value="yes"> Fazer adiantamento da assinatura após salvar</label><p class="muted">Lembre-se de preencher os nomes dos alunos após receber os dispositivos.</p>') : ""}<button class="btn primary">Salvar agendamento</button></form>`,
+    }${field("Data", `<input type="date" name="date" min="${localToday()}" max="${end.toISOString().slice(0, 10)}" value="${a.date}" required>`)}${field("Turma", `<input name="class_name" value="${h(a.class_name)}" maxlength="200" required>`)}</div>${deviceChoices(existing ? requestItems(a) : [], 25)}<p class="muted">${existing ? `Horário registrado: ${h(a.time)} (São Paulo).` : "O horário será registrado automaticamente ao salvar, no fuso de São Paulo."}</p><p class="muted">Ao editar, o pedido de extras é reiniciado e a assinatura antecipada precisa ser refeita.</p>${state.user.role === "PROFESSOR" ? (state.user.advanceRequired ? "<p><b>O adiantamento da assinatura é obrigatório após salvar.</b></p><p>Preencha os nomes dos alunos após receber os dispositivos.</p>" : '<label><input type="checkbox" name="advance" value="yes"> Fazer adiantamento da assinatura após salvar</label><p class="muted">Lembre-se de preencher os nomes dos alunos após receber os dispositivos.</p>') : ""}<button class="btn primary">Salvar agendamento</button></form>`,
     true,
   );
   bindChoices($("#appointmentForm"), 25);
@@ -630,15 +630,15 @@ function release() {
   return (
     hero(
       l ? "Liberar dispositivos extras" : "Liberar dispositivos",
-      "Selecione um agendamento aprovado e leia os QR Codes ou códigos de barras dos equipamentos.",
+      "Selecione um agendamento aguardando liberação e leia os QR Codes ou códigos de barras dos equipamentos.",
     ) +
     `<div class="card">${
       l
         ? `<div class="notice">Extras para ${h(l.teacher.name)} • ${h(l.class_name)} — ${needed} aparelhos</div>`
         : field(
-            "Agendamento aprovado",
+            "Agendamento aguardando liberação",
             `<select id="releaseAppointment"><option value="">Selecione</option>${state.appointments
-              .filter((a) => a.status === "APROVADO")
+              .filter((a) => ["PENDENTE", "APROVADO"].includes(a.status))
               .map(
                 (a) =>
                   `<option value="${a.id}" ${a.id === state.appointment ? "selected" : ""}>${date(a.date)} ${h(a.time)} • ${h(a.teacher_name)} • ${h(a.class_name)} • ${h(requestSummary(a))}</option>`,
@@ -665,7 +665,7 @@ function release() {
                   `<option value="${previous.id}">${h(previous.class_name)} • ${h(new Date(previous.departed_at).toLocaleString("pt-BR"))} • ${previous.items.length} aparelhos</option>`,
               )
               .join("")}</select>`,
-          )}${button("Puxar aparelhos", 'id="reuseDevices" type="button"')}<p class="muted">Somente aparelhos disponíveis, dentro das quantidades aprovadas. Os nomes dos alunos ficam em branco. Para mais aparelhos, complete a seleção ou ajuste o agendamento antes de liberar.</p></div>`
+          )}${button("Puxar aparelhos", 'id="reuseDevices" type="button"')}<p class="muted">Somente aparelhos disponíveis, dentro das quantidades solicitadas. Os nomes dos alunos ficam em branco. Para mais aparelhos, complete a seleção ou ajuste o agendamento antes de liberar.</p></div>`
         : ""
     }<div class="toolbar section">${field("QR / código de barras / patrimônio ou série", '<input id="qrInput" placeholder="Leia ou digite o código">')}${button("Adicionar código", 'id="addCode"', "primary")}${button("📷 Abrir câmera", 'id="scan"')}${button(`Liberar ${state.selection.size}${needed ? ` / ${needed}` : ""} dispositivos`, 'id="releaseDevices"', "success")}</div></div><div class="card section"><h2>Equipamentos disponíveis</h2>${table(
       ["Selecionar", "Patrimônio", "Tipo", "Estado"],
@@ -1318,16 +1318,6 @@ function bind() {
         appointmentModal(
           state.appointments.find((a) => a.id === b.dataset.editAppointment),
         )),
-  );
-  $$("[data-approve]").forEach(
-    (b) =>
-      (b.onclick = action(async () => {
-        await api(`/appointments/${b.dataset.approve}/approve`, {
-          method: "POST",
-        });
-        await refresh();
-        toast("Pedido aprovado.");
-      })),
   );
   $$("[data-cancel]").forEach(
     (b) =>

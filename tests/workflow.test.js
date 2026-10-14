@@ -294,8 +294,9 @@ test("agendamento, isolamento e aprovação", async () => {
     403,
   );
   assert.equal(
-    (await ti(`/api/appointments/${appointment.id}/approve`, "POST")).status,
-    200,
+    (await prof("/api/appointments")).data.find((a) => a.id === appointment.id)
+      .status,
+    "PENDENTE",
   );
 });
 test("liberação atômica, limites e aparelhos indisponíveis", async () => {
@@ -872,6 +873,53 @@ test("assinatura antecipada regulariza pendências antigas sem sobrescrever assi
       previous,
     );
     await reopened.close();
+  }
+});
+test("consultas das listas não crescem com o histórico e preservam isolamento", async () => {
+  const prepare = db.prepare.bind(db);
+  let queries = 0;
+  db.prepare = (...args) => {
+    queries++;
+    return prepare(...args);
+  };
+  try {
+    queries = 0;
+    const beforeAppointments = await prof("/api/appointments");
+    const beforeLoans = await prof("/api/loans");
+    const baseline = queries;
+    for (let n = 0; n < 30; n++) {
+      await prepare(
+        "INSERT INTO appointments(id,teacher_id,date,time,class_name,type,quantity,status,created_at) SELECT ?,teacher_id,date,time,class_name,type,quantity,'CONCLUIDO',created_at FROM appointments WHERE id=?",
+      ).run(`batch-a-${n}`, appointment.id);
+      await prepare(
+        "INSERT INTO loans(id,appointment_id,teacher_id,ti_id,class_name,departed_at,status) SELECT ?,?,teacher_id,ti_id,class_name,departed_at,'CONCLUIDA' FROM loans WHERE id=?",
+      ).run(`batch-l-${n}`, `batch-a-${n}`, loan.id);
+    }
+    queries = 0;
+    const afterAppointments = await prof("/api/appointments");
+    const afterLoans = await prof("/api/loans");
+    assert.equal(queries, baseline);
+    assert.equal(
+      afterAppointments.data.length,
+      beforeAppointments.data.length + 30,
+    );
+    assert.equal(afterLoans.data.length, beforeLoans.data.length + 30);
+    assert.deepEqual(
+      afterLoans.data.find((l) => l.id === loan.id),
+      beforeLoans.data.find((l) => l.id === loan.id),
+    );
+    assert.equal(
+      (await other("/api/loans")).data.some((l) => l.id.startsWith("batch-l-")),
+      false,
+    );
+    assert.equal(
+      (await other("/api/appointments")).data.some((a) =>
+        a.id.startsWith("batch-a-"),
+      ),
+      false,
+    );
+  } finally {
+    db.prepare = prepare;
   }
 });
 test("senha, desativação e logout encerram acesso", async () => {
