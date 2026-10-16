@@ -338,6 +338,7 @@ function teacherPending() {
       ((l.status === "EM_USO" &&
         l.items.some((i) => !i.not_used && !i.student.trim())) ||
         (l.status === "AGUARDANDO_ASSINATURAS" &&
+          state.user.advanceRequired &&
           !l.signatures.some((s) => s.type === "PROFESSOR"))),
   );
   return [
@@ -523,7 +524,7 @@ function appointments() {
       ],
       state.appointments.map(
         (a) =>
-          `<tr><td>${date(a.date)} • ${h(a.time)}</td><td>${h(a.teacher_name)}</td><td>${h(a.class_name)}</td><td>${h(requestSummary(a))}${a.extras ? ` + ${a.extras} extras` : ""}</td><td>${["PENDENTE", "APROVADO"].includes(a.status) ? status("APROVADO") : status(a.status)}</td><td><div class="toolbar">${schedules() && ["PENDENTE", "APROVADO"].includes(a.status) ? button("Editar", `data-edit-appointment="${a.id}"`) + button("Cancelar", `data-cancel="${a.id}"`, "danger") : ""}${a.teacher_id === state.user.id && ["PENDENTE", "APROVADO"].includes(a.status) ? button(a.advance_signature ? "Ver antecipação" : "Antecipar assinatura", `data-advance="${a.id}"`) : ""}${operates() && ["PENDENTE", "APROVADO"].includes(a.status) ? button("Liberar", `data-release="${a.id}"`, "primary") : ""}</div></td></tr>`,
+          `<tr><td>${date(a.date)} • ${h(a.time)}</td><td>${h(a.teacher_name)}</td><td>${h(a.class_name)}</td><td>${h(requestSummary(a))}${a.extras ? ` + ${a.extras} extras` : ""}</td><td>${["PENDENTE", "APROVADO"].includes(a.status) ? status("APROVADO") : status(a.status)}</td><td><div class="toolbar">${schedules() && ["PENDENTE", "APROVADO"].includes(a.status) ? button("Editar", `data-edit-appointment="${a.id}"`) + button("Cancelar", `data-cancel="${a.id}"`, "danger") : ""}${state.user.advanceRequired && a.teacher_id === state.user.id && ["PENDENTE", "APROVADO"].includes(a.status) ? button(a.advance_signature ? "Ver antecipação" : "Antecipar assinatura", `data-advance="${a.id}"`) : ""}${operates() && ["PENDENTE", "APROVADO"].includes(a.status) ? button("Liberar", `data-release="${a.id}"`, "primary") : ""}</div></td></tr>`,
       ),
     )}</div>`
   );
@@ -605,7 +606,7 @@ function appointmentModal(existing) {
               .join("")}</select>`,
           )
         : ""
-    }${field("Data", `<input type="date" name="date" min="${localToday()}" max="${end.toISOString().slice(0, 10)}" value="${a.date}" required>`)}${field("Turma", `<input name="class_name" value="${h(a.class_name)}" maxlength="200" required>`)}</div>${deviceChoices(existing ? requestItems(a) : [], 25)}<p class="muted">${existing ? `Horário registrado: ${h(a.time)} (São Paulo).` : "O horário será registrado automaticamente ao salvar, no fuso de São Paulo."}</p><p class="muted">Ao editar, o pedido de extras é reiniciado e a assinatura antecipada precisa ser refeita.</p>${state.user.role === "PROFESSOR" ? (state.user.advanceRequired ? "<p><b>O adiantamento da assinatura é obrigatório após salvar.</b></p><p>Preencha os nomes dos alunos após receber os dispositivos.</p>" : '<label><input type="checkbox" name="advance" value="yes"> Fazer adiantamento da assinatura após salvar</label><p class="muted">Lembre-se de preencher os nomes dos alunos após receber os dispositivos.</p>') : ""}<button class="btn primary">Salvar agendamento</button></form>`,
+    }${field("Data", `<input type="date" name="date" min="${localToday()}" max="${end.toISOString().slice(0, 10)}" value="${a.date}" required>`)}${field("Turma", `<input name="class_name" value="${h(a.class_name)}" maxlength="200" required>`)}</div>${deviceChoices(existing ? requestItems(a) : [], 25)}<p class="muted">${existing ? `Horário registrado: ${h(a.time)} (São Paulo).` : "O horário será registrado automaticamente ao salvar, no fuso de São Paulo."}</p><p class="muted">Ao editar, o pedido de extras é reiniciado. Se a assinatura antecipada estiver habilitada, será necessário refazê-la.</p>${state.user.role === "PROFESSOR" ? (state.user.advanceRequired ? "<p><b>O adiantamento da assinatura é obrigatório após salvar.</b></p><p>Preencha os nomes dos alunos após receber os dispositivos.</p>" : '<p class="muted">Não é necessária assinatura do professor. Preencha os nomes dos alunos após receber os dispositivos. TI ou gerente assina ao final.</p>') : ""}<button class="btn primary">Salvar agendamento</button></form>`,
     true,
   );
   bindChoices($("#appointmentForm"), 25);
@@ -624,10 +625,7 @@ function appointmentModal(existing) {
     closeModal();
     await refresh();
     toast("Agendamento salvo.");
-    if (
-      (state.user.advanceRequired || body.advance === "yes") &&
-      saved.teacher_id === state.user.id
-    )
+    if (state.user.advanceRequired && saved.teacher_id === state.user.id)
       advanceSignature(saved);
   });
 }
@@ -1111,7 +1109,7 @@ function reportModal(l) {
   const ownType = state.user.id === l.teacher_id ? "PROFESSOR" : "TI";
   const canSign =
     l.status === "AGUARDANDO_ASSINATURAS" &&
-    (ownType === "PROFESSOR" || operates()) &&
+    ((ownType === "PROFESSOR" && state.user.advanceRequired) || operates()) &&
     !l.signatures.some((s) => s.type === ownType);
   modal(
     `<div id="reportDocument" class="report-preview"><div class="report-title"><h2>APP Monitor • Relatório de empréstimo</h2><small>Registro ${h(l.id)}</small></div><div class="report-meta"><div><b>Professor:</b> ${h(l.teacher.name)}</div><div><b>Turma:</b> ${h(l.class_name)}</div><div><b>TI da liberação:</b> ${h(l.ti.name)}</div><div><b>Situação:</b> ${h(labels[l.status])}</div><div><b>Saída:</b> ${fmt(l.departed_at)}</div><div><b>Retorno conferido:</b> ${fmt(l.returned_at)}</div></div>${table(
@@ -1129,7 +1127,7 @@ function reportModal(l) {
           type === "PROFESSOR" && advance
             ? { ...advance, name: l.teacher.name }
             : l.signatures.find((s) => s.type === type);
-        return `<div class="signature-card"><b>Assinatura ${labels[type]}</b>${s ? `<img class="signature-image" src="${h(s.image)}" alt="Assinatura ${labels[type]}"><small>${h(s.name)} • ${fmt(s.signed_at)}${type === "PROFESSOR" && advance ? " • Registrada no agendamento" : ""}</small>` : `<p class="muted">${l.correction?.closed ? "Não assinado" : "Pendente"}</p>`}</div>`;
+        return `<div class="signature-card"><b>Assinatura ${labels[type]}</b>${s ? `<img class="signature-image" src="${h(s.image)}" alt="Assinatura ${labels[type]}"><small>${h(s.name)} • ${fmt(s.signed_at)}${type === "PROFESSOR" && advance ? " • Registrada no agendamento" : ""}</small>` : `<p class="muted">${type === "PROFESSOR" && (l.teacher_signature_exempt || (!state.user.advanceRequired && l.status !== "CONCLUIDA")) ? "Dispensada pela configuração da escola" : l.correction?.closed ? "Não assinado" : "Pendente"}</p>`}</div>`;
       })
       .join(
         "",
@@ -1377,7 +1375,7 @@ function bind() {
     if (state.user.role === "GERENTE") {
       $("#modal .modal").insertAdjacentHTML(
         "beforeend",
-        `<hr><h3>Configuração da escola</h3><form id="signatureSetting"><label><input id="requireAdvance" type="checkbox" ${state.user.advanceRequired ? "checked" : ""}> Exigir adiantamento da assinatura dos professores</label><p>Esta opção vale para toda a escola. Somente gerentes podem alterá-la.</p><button class="btn primary">Salvar configuração</button></form>`,
+        `<hr><h3>Configuração da escola</h3><form id="signatureSetting"><label><input id="requireAdvance" type="checkbox" ${state.user.advanceRequired ? "checked" : ""}> Exigir adiantamento da assinatura dos professores</label><p>Desligada: o professor não assina em nenhuma etapa; TI ou gerente assina após a conferência. Ligada: exige assinatura antecipada do professor. Vale para toda a escola e somente gerentes podem alterá-la.</p><button class="btn primary">Salvar configuração</button></form>`,
       );
       $("#signatureSetting").onsubmit = action(async () => {
         await api("/settings", {

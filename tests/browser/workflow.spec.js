@@ -117,7 +117,9 @@ test("ciclo escolar completo pelas telas e layout móvel", async ({ page }) => {
   await page.getByLabel("Quantidade — Tablet", { exact: true }).fill("1");
   await page.getByLabel("Quantidade — Notebook", { exact: true }).fill("1");
   await expect(page.locator("#requestTotal")).toContainText("Total: 2 / 25");
-  await page.getByLabel("Fazer adiantamento da assinatura após salvar").check();
+  await expect(
+    page.getByLabel("Fazer adiantamento da assinatura após salvar"),
+  ).toHaveCount(0);
   let appointmentPosts = 0;
   const countAppointmentPosts = (request) => {
     if (
@@ -135,24 +137,10 @@ test("ciclo escolar completo pelas telas e layout móvel", async ({ page }) => {
       new Event("submit", { bubbles: true, cancelable: true }),
     );
   });
-  await expect(page.locator("#advanceCanvas")).toBeVisible();
+  await expect(page.locator("#appointmentForm")).toHaveCount(0);
+  await expect(page.locator("#advanceCanvas")).toHaveCount(0);
   expect(appointmentPosts).toBe(1);
   page.off("request", countAppointmentPosts);
-  await expect(
-    page.getByRole("heading", {
-      name: "Adiantamento da assinatura",
-      exact: true,
-    }),
-  ).toBeVisible();
-  const advance = page.locator("#advanceCanvas");
-  await advance.scrollIntoViewIfNeeded();
-  const box = await advance.boundingBox();
-  await page.mouse.move(box.x + 20, box.y + 30);
-  await page.mouse.down();
-  await page.mouse.move(box.x + 110, box.y + 55, { steps: 12 });
-  await page.mouse.up();
-  await page.getByRole("button", { name: "Confirmar antecipação" }).click();
-
   await expect(page.locator("#modal")).toHaveCount(0);
   await logout(page);
   await login(page, "ti@browser.local");
@@ -173,9 +161,7 @@ test("ciclo escolar completo pelas telas e layout móvel", async ({ page }) => {
   await page
     .getByRole("button", { name: "Editar alunos / assinatura", exact: true })
     .click();
-  await expect(
-    page.getByText("A assinatura existente será preservada."),
-  ).toBeVisible();
+  await expect(page.locator("#regSignature")).toBeVisible();
   await page.getByLabel("Aluno TB-1", { exact: true }).fill("Ana Souza");
   await page
     .getByLabel("Motivo da correção")
@@ -218,9 +204,9 @@ test("ciclo escolar completo pelas telas e layout móvel", async ({ page }) => {
   await page.getByRole("button", { name: "Visualizar / PDF" }).click();
   await expect(page.locator("#reportDocument")).toContainText("Concluído");
   await expect(page.locator("#reportDocument")).toContainText("Não usei");
-  await expect(page.locator(".signature-image")).toHaveCount(2);
+  await expect(page.locator(".signature-image")).toHaveCount(1);
   await expect(page.locator("#reportDocument")).toContainText(
-    "Registrada no agendamento",
+    "Dispensada pela configuração da escola",
   );
   await page.emulateMedia({ media: "print" });
   await expect(page.locator("#reportDocument")).toBeVisible();

@@ -422,6 +422,8 @@ test("assinatura antecipada obrigatória por padrão e configuração exclusiva 
       [prof, professor],
     ])
       await client("/api/login", "POST", { email: user.email, password });
+    assert.equal((await prof("/api/me")).data.advanceRequired, false);
+    await managerClient("/api/settings", "PATCH", { advanceRequired: true });
     assert.equal((await prof("/api/me")).data.advanceRequired, true);
     for (const client of [admin, prof])
       assert.equal(

@@ -16,6 +16,7 @@ import QRCode from "qrcode";
 import { govbrFromEnvironment, registerGovbr } from "./govbr.js";
 import {
   openDatabase,
+  completeTiOnlyLoans,
   id,
   verifyPassword,
   createUser,
@@ -163,7 +164,7 @@ export function createApp({
     );
   const advanceRequired = async () =>
     (await get("SELECT value FROM app_settings WHERE key='advance_required'"))
-      ?.value !== "false";
+      ?.value === "true";
   const requireAdvance = async (a) => {
     if ((await advanceRequired()) && !a.advance_signature)
       fail(
@@ -197,7 +198,7 @@ export function createApp({
   };
   const blocked = async (u) =>
     await get(
-      "SELECT l.id FROM loans l WHERE l.teacher_id=? AND ((l.status='AGUARDANDO_ASSINATURAS' AND NOT EXISTS(SELECT 1 FROM signatures s WHERE s.loan_id=l.id AND s.type='PROFESSOR')) OR (l.status='EM_USO' AND EXISTS(SELECT 1 FROM loan_items i WHERE i.loan_id=l.id AND trim(i.student)='' AND i.not_used=0)))",
+      "SELECT l.id FROM loans l WHERE l.teacher_id=? AND ((l.status='AGUARDANDO_ASSINATURAS' AND (SELECT value FROM app_settings WHERE key='advance_required')='true' AND NOT EXISTS(SELECT 1 FROM signatures s WHERE s.loan_id=l.id AND s.type='PROFESSOR')) OR (l.status='EM_USO' AND EXISTS(SELECT 1 FROM loan_items i WHERE i.loan_id=l.id AND trim(i.student)='' AND i.not_used=0)))",
       u.id,
     );
   const mustUnblocked = async (u) => {
@@ -312,6 +313,10 @@ export function createApp({
   };
   const fullLoan = async (l) => ({
     ...l,
+    teacher_signature_exempt: !!(await get(
+      "SELECT loan_id FROM loan_signature_exemptions WHERE loan_id=?",
+      l.id,
+    )),
     correction: await get(
       "SELECT c.*,u.name AS actor_name FROM loan_corrections c JOIN users u ON u.id=c.actor_id WHERE c.loan_id=?",
       l.id,
@@ -647,6 +652,15 @@ export function createApp({
         "INSERT INTO app_settings(key,value) VALUES('advance_required',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value",
         String(d.advanceRequired),
       );
+      if (!d.advanceRequired) {
+        for (const sql of completeTiOnlyLoans
+          .split(";")
+          .filter((s) => s.trim()))
+          await run(sql);
+        await run(
+          "UPDATE notifications SET status='CONCLUIDA' WHERE status='PENDENTE' AND title='Relatório para assinatura'",
+        );
+      }
       await audit(req.user, "ALTERAR_EXIGENCIA_ASSINATURA", null, d);
     });
     res.json(d);
@@ -1241,7 +1255,7 @@ export function createApp({
     const params = staff(req.user) ? [] : [req.user.id];
     const [loans, items, signatures, corrections] = await Promise.all([
       all(
-        `SELECT l.*,u.name AS teacher_name,u.email AS teacher_email,t.name AS ti_name FROM loans l JOIN users u ON u.id=l.teacher_id JOIN users t ON t.id=l.ti_id ${scope} ORDER BY l.departed_at DESC`,
+        `SELECT l.*,EXISTS(SELECT 1 FROM loan_signature_exemptions e WHERE e.loan_id=l.id) AS teacher_signature_exempt,u.name AS teacher_name,u.email AS teacher_email,t.name AS ti_name FROM loans l JOIN users u ON u.id=l.teacher_id JOIN users t ON t.id=l.ti_id ${scope} ORDER BY l.departed_at DESC`,
         ...params,
       ),
       all(
@@ -1449,7 +1463,14 @@ export function createApp({
         fail(400, "Já existe assinatura do professor; ela será preservada.");
       if (d.image && (signed || advance))
         fail(409, "A assinatura existente será preservada.");
-      if (d.close && !d.unsigned && !signed && !advance && !d.image)
+      if (
+        d.close &&
+        !d.unsigned &&
+        !signed &&
+        !advance &&
+        !d.image &&
+        (await advanceRequired())
+      )
         fail(400, "Registre a assinatura ou selecione Não assinado.");
       if (
         d.close &&
@@ -1509,6 +1530,11 @@ export function createApp({
         now(),
       );
       if (d.close) {
+        if (!(await advanceRequired()))
+          await run(
+            "INSERT INTO loan_signature_exemptions(loan_id) VALUES(?) ON CONFLICT(loan_id) DO NOTHING",
+            l.id,
+          );
         await run(
           "UPDATE loans SET status='CONCLUIDA',returned_at=COALESCE(returned_at,?) WHERE id=?",
           now(),
@@ -1768,6 +1794,13 @@ export function createApp({
           "reports",
           l.id,
         );
+      } else if (!(await advanceRequired())) {
+        await notifyStaff(
+          "Assinatura de TI pendente",
+          "A devolução foi conferida. Somente TI ou gerente precisa assinar.",
+          "reports",
+          l.id,
+        );
       } else {
         await notify(
           l.teacher_id,
@@ -1828,8 +1861,14 @@ export function createApp({
             "SELECT COUNT(*) AS n FROM signatures WHERE loan_id=?",
             l.id,
           )
-        ).n === 2
+        ).n === 2 ||
+        (type === "TI" && !(await advanceRequired()))
       ) {
+        if (!(await advanceRequired()))
+          await run(
+            "INSERT INTO loan_signature_exemptions(loan_id) VALUES(?) ON CONFLICT(loan_id) DO NOTHING",
+            l.id,
+          );
         await run("UPDATE loans SET status='CONCLUIDA' WHERE id=?", l.id);
         await run(
           "UPDATE appointments SET status='CONCLUIDO' WHERE id=?",
@@ -1839,7 +1878,7 @@ export function createApp({
         await notify(
           l.teacher_id,
           "Relatório concluído",
-          "As duas assinaturas foram registradas.",
+          "As assinaturas exigidas foram registradas.",
           "reports",
           l.id,
         );
@@ -1867,7 +1906,7 @@ export function createApp({
         l.status='CONCLUIDA' OR
         (notifications.title IN ('Dispositivos liberados','Extras liberados','Aparelho corrigido na movimentação') AND (l.status<>'EM_USO' OR NOT EXISTS(SELECT 1 FROM loan_items i WHERE i.loan_id=l.id AND trim(i.student)='' AND i.not_used=0))) OR
         (notifications.title='Conferência de retorno' AND l.status<>'AGUARDANDO_DEVOLUCAO') OR
-        (notifications.title='Relatório para assinatura' AND EXISTS(SELECT 1 FROM signatures s WHERE s.loan_id=l.id AND s.type='PROFESSOR')) OR
+        (notifications.title='Relatório para assinatura' AND ((SELECT value FROM app_settings WHERE key='advance_required')='false' OR EXISTS(SELECT 1 FROM signatures s WHERE s.loan_id=l.id AND s.type='PROFESSOR'))) OR
         (notifications.title='Assinatura de TI pendente' AND EXISTS(SELECT 1 FROM signatures s WHERE s.loan_id=l.id AND s.type='TI')) OR
         (notifications.title='Dispositivos extras' AND (l.status<>'EM_USO' OR EXISTS(SELECT 1 FROM appointments a WHERE a.id=l.appointment_id AND (a.extras=0 OR (SELECT COUNT(*) FROM loan_items i WHERE i.loan_id=l.id)>=a.quantity+a.extras))))
       )))

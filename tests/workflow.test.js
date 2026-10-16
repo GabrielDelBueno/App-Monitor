@@ -475,6 +475,7 @@ test("associação, devolução, conferência e desbloqueio por assinatura", asy
     (await ti(`/api/loans/${loan.id}/check`, "POST", { items: checks })).status,
     200,
   );
+  await admin("/api/settings", "PATCH", { advanceRequired: true });
   assert.equal((await prof("/api/me")).data.blocked, true);
   assert.equal(
     (
@@ -518,6 +519,7 @@ test("associação, devolução, conferência e desbloqueio por assinatura", asy
   assert.equal(completed.status, 200);
   assert.equal(completed.data.status, "CONCLUIDA");
   assert.equal(completed.data.signatures.length, 2);
+  await admin("/api/settings", "PATCH", { advanceRequired: false });
   assert.equal((await prof("/api/appointments")).data[0].status, "CONCLUIDO");
   assert.equal(
     (await ti("/api/devices")).data.find((d) => d.id === devices[0].id).status,
@@ -1057,6 +1059,77 @@ test("envios simultâneos e repetidos criam um único agendamento", async () => 
   });
   assert.equal(distinct.status, 201);
   assert.notEqual(distinct.data.id, replay.data.id);
+});
+test("desligar assinatura dispensa professor, conclui pendências antigas e mantém assinatura TI", async () => {
+  const user = await createUser(db, {
+    name: "Professor dispensado",
+    email: "exempt@test.local",
+    password,
+    role: "PROFESSOR",
+  });
+  const browser = client();
+  await browser("/api/login", "POST", { email: "exempt@test.local", password });
+  await admin("/api/settings", "PATCH", { advanceRequired: true });
+  for (let n = 0; n < 2; n++) {
+    await db
+      .prepare(
+        "INSERT INTO appointments(id,teacher_id,date,time,class_name,type,quantity,status,created_at) SELECT ?,?,date,time,class_name,type,1,'EM_USO',created_at FROM appointments WHERE id=?",
+      )
+      .run(`exempt-a-${n}`, user.id, appointment.id);
+    await db
+      .prepare(
+        "INSERT INTO loans(id,appointment_id,teacher_id,ti_id,class_name,departed_at,status) SELECT ?,?,?,ti_id,class_name,departed_at,'AGUARDANDO_ASSINATURAS' FROM loans WHERE id=?",
+      )
+      .run(`exempt-l-${n}`, `exempt-a-${n}`, user.id, loan.id);
+  }
+  const first = await ti("/api/loans/exempt-l-0/sign", "POST", {
+    image: signature,
+  });
+  assert.equal(first.status, 200);
+  assert.equal(first.data.status, "AGUARDANDO_ASSINATURAS");
+  assert.equal((await browser("/api/me")).data.blocked, true);
+  await admin("/api/settings", "PATCH", { advanceRequired: false });
+  assert.equal((await browser("/api/me")).data.blocked, false);
+  const old = (await browser("/api/loans")).data.find(
+    (l) => l.id === "exempt-l-0",
+  );
+  assert.equal(old.status, "CONCLUIDA");
+  assert.equal(Boolean(old.teacher_signature_exempt), true);
+  assert.deepEqual(
+    old.signatures.map((s) => s.type),
+    ["TI"],
+  );
+  const second = await ti("/api/loans/exempt-l-1/sign", "POST", {
+    image: signature,
+  });
+  assert.equal(second.status, 200);
+  assert.equal(second.data.status, "CONCLUIDA");
+  assert.equal(second.data.signatures.length, 1);
+  assert.equal(second.data.teacher_signature_exempt, true);
+  await admin("/api/settings", "PATCH", { advanceRequired: true });
+  const reopened = process.env.TEST_DATABASE_URL
+    ? await openPostgres(process.env.TEST_DATABASE_URL, {
+        localTest: process.env.TEST_DATABASE_TLS !== "true",
+      })
+    : openDatabase(dbPath);
+  assert.equal(
+    (
+      await reopened
+        .prepare("SELECT value FROM app_settings WHERE key='advance_required'")
+        .get()
+    ).value,
+    "true",
+  );
+  assert.equal(
+    (
+      await reopened
+        .prepare("SELECT status FROM loans WHERE id='exempt-l-0'")
+        .get()
+    ).status,
+    "CONCLUIDA",
+  );
+  await reopened.close();
+  await admin("/api/settings", "PATCH", { advanceRequired: false });
 });
 test("senha, desativação e logout encerram acesso", async () => {
   assert.equal(

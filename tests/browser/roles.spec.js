@@ -107,7 +107,7 @@ test("administrador simplificado, ordem do menu e exportação segura do invent�
     await page.getByLabel("Senha", { exact: true }).fill(password);
     await page.getByRole("button", { name: "Entrar", exact: true }).click();
     await page.getByRole("button", { name: "Conta", exact: true }).click();
-    await expect(page.locator("#requireAdvance")).toBeChecked();
+    await expect(page.locator("#requireAdvance")).not.toBeChecked();
     await page.locator("#requireAdvance").uncheck();
     await page
       .getByRole("button", { name: "Salvar configuração", exact: true })

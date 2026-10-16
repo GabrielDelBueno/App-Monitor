@@ -17,6 +17,11 @@ export function verifyPassword(password, hash) {
   const actual = scryptSync(password, salt, 64);
   return timingSafeEqual(actual, Buffer.from(key, "hex"));
 }
+export const completeTiOnlyLoans = `
+ INSERT INTO loan_signature_exemptions(loan_id) SELECT l.id FROM loans l WHERE l.status='AGUARDANDO_ASSINATURAS' AND EXISTS(SELECT 1 FROM signatures s WHERE s.loan_id=l.id AND s.type='TI') AND NOT EXISTS(SELECT 1 FROM loan_signature_exemptions e WHERE e.loan_id=l.id);
+ UPDATE loans SET status='CONCLUIDA' WHERE status='AGUARDANDO_ASSINATURAS' AND EXISTS(SELECT 1 FROM loan_signature_exemptions e WHERE e.loan_id=loans.id);
+ UPDATE appointments SET status='CONCLUIDO' WHERE id IN (SELECT appointment_id FROM loans WHERE status='CONCLUIDA');
+`;
 export const schema = `
  CREATE TABLE IF NOT EXISTS app_settings(key TEXT PRIMARY KEY,value TEXT NOT NULL);
  CREATE TABLE IF NOT EXISTS users(id TEXT PRIMARY KEY,name TEXT NOT NULL,email TEXT NOT NULL UNIQUE,password TEXT NOT NULL,role TEXT NOT NULL CHECK(role IN ('TI','PROFESSOR','ADMINISTRADOR')),active INTEGER NOT NULL DEFAULT 1,created_at TEXT NOT NULL);
@@ -30,6 +35,7 @@ export const schema = `
  CREATE TABLE IF NOT EXISTS loan_items(id TEXT PRIMARY KEY,loan_id TEXT NOT NULL REFERENCES loans(id),device_id TEXT NOT NULL REFERENCES devices(id),student TEXT NOT NULL DEFAULT '',departure_status TEXT NOT NULL,return_status TEXT,ti_comment TEXT NOT NULL DEFAULT '',UNIQUE(loan_id,device_id));
  CREATE TABLE IF NOT EXISTS signatures(id TEXT PRIMARY KEY,loan_id TEXT NOT NULL REFERENCES loans(id),user_id TEXT NOT NULL REFERENCES users(id),type TEXT NOT NULL,image TEXT NOT NULL,signed_at TEXT NOT NULL,UNIQUE(loan_id,type));
  CREATE TABLE IF NOT EXISTS notifications(id TEXT PRIMARY KEY,user_id TEXT NOT NULL REFERENCES users(id),title TEXT NOT NULL,message TEXT NOT NULL,page TEXT NOT NULL,entity_id TEXT,status TEXT NOT NULL DEFAULT 'PENDENTE',created_at TEXT NOT NULL);
+ CREATE TABLE IF NOT EXISTS loan_signature_exemptions(loan_id TEXT PRIMARY KEY REFERENCES loans(id));
  CREATE TABLE IF NOT EXISTS loan_corrections(loan_id TEXT PRIMARY KEY REFERENCES loans(id),actor_id TEXT NOT NULL REFERENCES users(id),reason TEXT NOT NULL,missing_students INTEGER NOT NULL,unsigned INTEGER NOT NULL,closed INTEGER NOT NULL,updated_at TEXT NOT NULL);
  CREATE TABLE IF NOT EXISTS audit(id TEXT PRIMARY KEY,user_id TEXT REFERENCES users(id),action TEXT NOT NULL,entity_id TEXT,details TEXT NOT NULL,created_at TEXT NOT NULL);
  CREATE TABLE IF NOT EXISTS oauth_flows(state_hash TEXT PRIMARY KEY,browser_hash TEXT NOT NULL,code_verifier TEXT NOT NULL,nonce TEXT NOT NULL,redirect_uri TEXT NOT NULL,mode TEXT NOT NULL,user_id TEXT REFERENCES users(id),session_hash TEXT,expires_at INTEGER NOT NULL);
@@ -38,6 +44,11 @@ export const schema = `
  SELECT 'advance:' || l.id,l.id,a.user_id,'PROFESSOR',a.image,a.signed_at FROM loans l JOIN advance_signatures a ON a.appointment_id=l.appointment_id AND a.user_id=l.teacher_id
  WHERE l.status IN ('AGUARDANDO_ASSINATURAS','CONCLUIDA') AND NOT EXISTS(SELECT 1 FROM signatures s WHERE s.loan_id=l.id AND s.type='PROFESSOR');
  UPDATE loans SET status='CONCLUIDA' WHERE status='AGUARDANDO_ASSINATURAS' AND (SELECT COUNT(*) FROM signatures s WHERE s.loan_id=loans.id)=2;
+ UPDATE appointments SET status='CONCLUIDO' WHERE id IN (SELECT appointment_id FROM loans WHERE status='CONCLUIDA');
+ INSERT INTO app_settings(key,value) SELECT 'advance_required','false' WHERE NOT EXISTS(SELECT 1 FROM app_settings WHERE key='ti_only_signature_rollout') ON CONFLICT(key) DO UPDATE SET value=excluded.value;
+ INSERT INTO app_settings(key,value) VALUES('ti_only_signature_rollout','1') ON CONFLICT(key) DO NOTHING;
+ INSERT INTO loan_signature_exemptions(loan_id) SELECT l.id FROM loans l WHERE l.status='AGUARDANDO_ASSINATURAS' AND EXISTS(SELECT 1 FROM signatures s WHERE s.loan_id=l.id AND s.type='TI') AND (SELECT value FROM app_settings WHERE key='advance_required')='false' AND NOT EXISTS(SELECT 1 FROM loan_signature_exemptions e WHERE e.loan_id=l.id);
+ UPDATE loans SET status='CONCLUIDA' WHERE status='AGUARDANDO_ASSINATURAS' AND EXISTS(SELECT 1 FROM loan_signature_exemptions e WHERE e.loan_id=loans.id);
  UPDATE appointments SET status='CONCLUIDO' WHERE id IN (SELECT appointment_id FROM loans WHERE status='CONCLUIDA');
  CREATE INDEX IF NOT EXISTS loan_items_device ON loan_items(device_id);
  CREATE INDEX IF NOT EXISTS loans_teacher ON loans(teacher_id,status);
